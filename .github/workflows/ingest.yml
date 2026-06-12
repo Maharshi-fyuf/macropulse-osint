@@ -1,0 +1,17 @@
+name: Ingest News
+
+on:
+  schedule:
+    # Run every 20 minutes
+    - cron: '*/20 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger News Ingestion Cron
+        run: |
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/fetch-news" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --fail
