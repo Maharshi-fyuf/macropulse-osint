@@ -28,10 +28,12 @@ function parseSafeDate(dateStr: string | undefined | null): string {
 export async function GET(request: Request) {
   try {
     // 1. Authenticate Request
+    const url = new URL(request.url);
+    const secretParam = url.searchParams.get('secret');
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
 
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret || (authHeader !== `Bearer ${cronSecret}` && secretParam !== cronSecret)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { memo } from 'react';
+import { MiniChart } from 'react-ts-tradingview-widgets';
 
 export interface MarketEvent {
   id: string;
@@ -39,6 +40,29 @@ export function formatTimeAgo(dateString: string): string {
     return 'unknown';
   }
 }
+
+const getTradingViewSymbol = (assetClass: string | null) => {
+  switch (assetClass) {
+    case 'Energy': return 'NYMEX:CL1!';
+    case 'Metals': return 'OANDA:XAUUSD';
+    case 'Forex': return 'FX:EURUSD';
+    case 'Equities': return 'CME_MINI:ES1!';
+    default: return null;
+  }
+};
+
+const MemoizedMiniChart = memo(({ symbol }: { symbol: string }) => (
+  <div className="mt-4 rounded-xl overflow-hidden h-[150px] w-full border border-zinc-800">
+    <MiniChart 
+      colorTheme="dark" 
+      symbol={symbol} 
+      width="100%" 
+      height={150} 
+      isTransparent={true}
+      autosize
+    />
+  </div>
+));
 
 export default function EventCard({ event }: EventCardProps) {
   // Determine severity color based on score (1-10)
@@ -129,6 +153,11 @@ export default function EventCard({ event }: EventCardProps) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Interactive TradingView Chart */}
+      {getTradingViewSymbol(event.asset_class) && (
+        <MemoizedMiniChart symbol={getTradingViewSymbol(event.asset_class)!} />
       )}
     </div>
   );
