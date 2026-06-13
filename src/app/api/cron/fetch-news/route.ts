@@ -54,10 +54,11 @@ const DEFAULT_FEEDS = [
 const RECENCY_GATE_HOURS = 48;
 
 // ── Rate limit config ─────────────────────────────────────────────────────────
-// Gemini free tier: 20 RPD / 15 RPM. We process sequentially with a small
-// inter-request delay and a single 429 retry with exponential backoff.
-const MAX_ITEMS_PER_RUN = 10; // Conservative: 10 × ~2s Gemini calls = ~20s well within 60s limit
-const GEMINI_INTER_REQUEST_DELAY_MS = 500; // 0.5s between calls → max ~13 RPM, safely under 15 RPM
+// Gemini free tier: 15 RPM / 1500 RPD.
+// Drip-feed approach: 5 items × 5s hard delay = ~25s per run, capped at 12 RPM.
+// This native throttle makes 429 errors structurally impossible.
+const MAX_ITEMS_PER_RUN = 5;                  // 5 items per cron trigger
+const GEMINI_INTER_REQUEST_DELAY_MS = 5000;   // 5s hard pause → never exceeds 12 RPM
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -154,9 +155,9 @@ async function fetchSingleFeed(
 }
 
 /**
- * Calls Gemini to analyze a news item.
- * On a 429 rate-limit response, waits 61 seconds and retries once.
- * On any other error, throws so the caller can log and skip the item.
+ * Calls Gemini to analyze a single news item and returns a structured GeminiAnalysis.
+ * Throws on any error so the caller can log and skip the item cleanly.
+ * Rate-limiting is handled externally via the 5s drip-feed delay in the caller loop.
  */
 async function analyzeWithGemini(
   ai: GoogleGenAI,
@@ -179,47 +180,35 @@ Output exactly a single JSON object matching this schema:
 }
 If "is_market_moving" is false, return "None" for asset class and empty arrays. Do not add markdown code blocks around the JSON string.`;
 
-  const callGemini = async () =>
-    ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            is_market_moving: { type: 'BOOLEAN' },
-            rationale: { type: 'STRING' },
-            severity_score: { type: 'INTEGER' },
-            primary_asset_class: {
-              type: 'STRING',
-              enum: ['Energy', 'Metals', 'Forex', 'Equities', 'None'],
-            },
-            bullish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
-            bearish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'OBJECT',
+        properties: {
+          is_market_moving: { type: 'BOOLEAN' },
+          rationale: { type: 'STRING' },
+          severity_score: { type: 'INTEGER' },
+          primary_asset_class: {
+            type: 'STRING',
+            enum: ['Energy', 'Metals', 'Forex', 'Equities', 'None'],
           },
-          required: [
-            'is_market_moving',
-            'rationale',
-            'severity_score',
-            'primary_asset_class',
-            'bullish_assets',
-            'bearish_assets',
-          ],
+          bullish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
+          bearish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
         },
+        required: [
+          'is_market_moving',
+          'rationale',
+          'severity_score',
+          'primary_asset_class',
+          'bullish_assets',
+          'bearish_assets',
+        ],
       },
-    });
-
-  let response = await callGemini();
-
-  // ── 429 retry with backoff ─────────────────────────────────────────────────
-  // Gemini SDK throws on rate-limit but may embed the code in the message.
-  // We check for '429' in the message string to catch it safely.
-  if (!response.text && String(response).includes('429')) {
-    console.warn('[Cron Warn] Gemini 429 — waiting 62s before retry...');
-    await sleep(62000);
-    response = await callGemini();
-  }
+    },
+  });
 
   const jsonText = response.text;
   if (!jsonText) throw new Error('Gemini returned an empty text response.');
@@ -418,10 +407,10 @@ export async function GET(request: Request) {
         processedLog.push({ title: item.title, status: 'analysis_failed', error: itemError?.message || String(itemError) });
       }
 
-      // Inter-request delay to stay within Gemini free-tier rate limits (15 RPM)
-      if (itemsToProcess.indexOf(item) < itemsToProcess.length - 1) {
-        await sleep(GEMINI_INTER_REQUEST_DELAY_MS);
-      }
+      // ── Drip-feed delay: 5s between every Gemini call ───────────────────
+      // At 5s per gap and 5 items max, burst rate can never exceed 12 RPM,
+      // structurally preventing 429 RESOURCE_EXHAUSTED on the free tier.
+      await sleep(GEMINI_INTER_REQUEST_DELAY_MS);
     }
 
     // ── 8. Bulk upsert — single DB round-trip for all analysed articles ──────
