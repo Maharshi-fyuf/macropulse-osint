@@ -278,7 +278,7 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
         const severityScore = Math.max(1, Math.min(10, Math.round(analysis.severity_score || 1)));
 
         // 7. Write Result to Supabase
-        const { error: insertError } = await supabaseAdmin.from('events').insert({
+        const insertPayload = {
           title: item.title,
           source: item.source,
           url: item.link,
@@ -289,20 +289,37 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
           asset_class: analysis.primary_asset_class,
           bullish_assets: analysis.bullish_assets || [],
           bearish_assets: analysis.bearish_assets || [],
-        });
+        };
+
+        const { error: insertError } = await supabaseAdmin.from('events').insert(insertPayload);
 
         if (insertError) {
           console.error(`Failed to insert article: ${item.link}`, insertError);
+          processedEvents.push({
+            title: item.title,
+            status: 'insert_failed',
+            error: insertError.message,
+            code: insertError.code,
+            details: insertError.details,
+            hint: insertError.hint,
+            payload_keys: Object.keys(insertPayload),
+          });
         } else {
           insertedCount++;
           processedEvents.push({
             title: item.title,
+            status: 'inserted',
             is_market_moving: analysis.is_market_moving,
             severity_score: severityScore,
           });
         }
-      } catch (itemError) {
+      } catch (itemError: any) {
         console.error(`Failed to process article with Gemini/Supabase: ${item.link}`, itemError);
+        processedEvents.push({
+          title: item.title,
+          status: 'processing_error',
+          error: itemError?.message || String(itemError),
+        });
       }
     }
 
