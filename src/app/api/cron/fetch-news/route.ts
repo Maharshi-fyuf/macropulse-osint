@@ -41,8 +41,8 @@ export async function GET(request: Request) {
     }
 
     // 2. Resolve RSS Feeds
-    const feedsStr = process.env.RSS_FEEDS;
-    const feeds = feedsStr ? feedsStr.split(',').map((f) => f.trim()) : DEFAULT_FEEDS;
+    // Force the use of DEFAULT_FEEDS (Ignore process.env.RSS_FEEDS which has the old dead URLs)
+    const feeds = DEFAULT_FEEDS;
 
     const parser = new Parser({
       customFields: {
