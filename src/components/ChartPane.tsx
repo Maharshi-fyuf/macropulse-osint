@@ -15,7 +15,7 @@ import { MarketEvent } from './FeedItem';
 import { type PredictionData } from '@/lib/types';
 
 interface ChartPaneProps {
-  event: MarketEvent | null;
+  event?: MarketEvent | null;
   prediction?: PredictionData | null;
 }
 
@@ -104,8 +104,14 @@ const MemoizedChart = memo(function MemoizedChart({
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedTicker, setResolvedTicker] = useState(symbol);
 
-  const isIndian = symbol.endsWith('.NS') || symbol.endsWith('.BO') || symbol === '^NSEI' || symbol === '^BSESN';
+  // Sync resolvedTicker with symbol prop if it changes externally
+  useEffect(() => {
+    setResolvedTicker(symbol);
+  }, [symbol]);
+
+  const isIndian = resolvedTicker.endsWith('.NS') || resolvedTicker.endsWith('.BO') || resolvedTicker === '^NSEI' || resolvedTicker === '^BSESN';
   const currencyPrefix = isIndian ? '₹' : '$';
 
   // ── Effect 1: Initialize chart instance (once on mount) ──────────────────
@@ -217,7 +223,18 @@ const MemoizedChart = memo(function MemoizedChart({
       upperLineRef.current = null;
       lowerLineRef.current = null;
     };
-  }, [currencyPrefix]); // Re-create chart if currency prefix changes (symbol change)
+  }, []); // Run only on mount
+
+  // ── Effect 1.5: Update currency formatting dynamically ─────────────────────
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.applyOptions({
+        localization: {
+          priceFormatter: (price: number) => `${currencyPrefix}${price.toFixed(2)}`,
+        },
+      });
+    }
+  }, [currencyPrefix]);
 
   // ── Effect 2: Fetch and render OHLC data whenever symbol changes ─────────
   useEffect(() => {
@@ -244,11 +261,16 @@ const MemoizedChart = memo(function MemoizedChart({
           throw new Error('No data returned for this symbol.');
         }
 
-        if (isMounted && seriesRef.current) {
-          rawDataRef.current = json.data;
-          seriesRef.current.setData(json.data);
-          chartRef.current?.timeScale().fitContent();
-          setLoading(false);
+        if (isMounted) {
+          if (json.resolvedSymbol) {
+            setResolvedTicker(json.resolvedSymbol);
+          }
+          if (seriesRef.current) {
+            rawDataRef.current = json.data;
+            seriesRef.current.setData(json.data);
+            chartRef.current?.timeScale().fitContent();
+            setLoading(false);
+          }
         }
       } catch (err: any) {
         if (err.name === 'AbortError') return;
