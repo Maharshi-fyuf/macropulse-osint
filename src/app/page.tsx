@@ -2,10 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-client';
-import FeedItem, { MarketEvent, getTradingViewSymbol } from '@/components/FeedItem';
+import { getTradingViewSymbol } from '@/lib/tickerMap';
+import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import AnalysisPane from '@/components/AnalysisPane';
 import ChartPane from '@/components/ChartPane';
 import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
+
+// Mobile tab identifiers
+type ActiveTab = 'feed' | 'chart' | 'analysis';
 
 export default function Home() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
@@ -13,6 +17,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [feedError, setFeedError] = useState(false);
+  // Mobile tab switcher — desktop ignores this via CSS
+  const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
 
   const fetchEvents = async () => {
     try {
@@ -27,15 +33,14 @@ export default function Home() {
         console.error('Error fetching events:', error);
         setFeedError(true);
       } else if (data && data.length > 0) {
-        // Map database events to include requested fields (content & ticker)
         const mappedEvents = data.map((event: any) => ({
           ...event,
           content: event.rationale,
-          ticker: getTradingViewSymbol(event.asset_class)
+          // Use the central tickerMap for correct symbol resolution
+          ticker: getTradingViewSymbol(event.asset_class),
         })) as MarketEvent[];
 
         setEvents(mappedEvents);
-        // Auto-select the most recent event if nothing is selected
         setSelectedFeedItem((prev) => prev || mappedEvents[0]);
       }
     } catch (err) {
@@ -48,47 +53,51 @@ export default function Home() {
 
   useEffect(() => {
     fetchEvents();
-
-    // Auto-refresh every 60 seconds
-    const interval = setInterval(() => {
-      fetchEvents();
-    }, 60000);
-
+    const interval = setInterval(fetchEvents, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  const filteredEvents = events.filter((event) => {
-    if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
-      const matchTitle = event.title.toLowerCase().includes(q);
-      const matchRationale = event.rationale?.toLowerCase().includes(q) || false;
-      const matchSource = event.source.toLowerCase().includes(q);
-      const matchAssets =
-        event.bullish_assets?.some((a) => a.toLowerCase().includes(q)) ||
-        event.bearish_assets?.some((a) => a.toLowerCase().includes(q)) ||
-        false;
+  // When user selects a feed item on mobile, auto-navigate to chart tab
+  const handleSelect = (event: MarketEvent) => {
+    setSelectedFeedItem(event);
+    setActiveTab('chart');
+  };
 
-      return matchTitle || matchRationale || matchSource || matchAssets;
-    }
-    return true;
+  const filteredEvents = events.filter((event) => {
+    if (searchQuery.trim() === '') return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      event.title.toLowerCase().includes(q) ||
+      (event.rationale?.toLowerCase().includes(q) ?? false) ||
+      event.source.toLowerCase().includes(q) ||
+      event.bullish_assets?.some((a) => a.toLowerCase().includes(q)) ||
+      event.bearish_assets?.some((a) => a.toLowerCase().includes(q))
+    );
   });
+
+  // ─── Tab visibility helpers (used only on mobile via md:hidden / md:flex) ───
+  const isFeedVisible   = activeTab === 'feed';
+  const isChartVisible  = activeTab === 'chart';
+  const isAnalysisVisible = activeTab === 'analysis';
 
   return (
     <div className="h-screen w-screen bg-[#09090b] text-zinc-100 overflow-hidden flex flex-col font-sans">
-      {/* Top Header Bar */}
+
+      {/* ── Top Header Bar ─────────────────────────────────────────────── */}
       <header className="h-14 border-b border-zinc-800 bg-[#09090b] flex items-center justify-between px-4 shrink-0">
         <div className="flex items-baseline gap-4">
           <h1 className="text-xl font-black tracking-tight text-white uppercase">
-            MacroPulse Terminal
+            MacroPulse
           </h1>
-          <span className="text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase">
+          <span className="hidden sm:inline text-[10px] font-mono font-bold tracking-wider text-zinc-500 uppercase">
             Live Feed
           </span>
         </div>
-        <div className="flex flex-1 max-w-md mx-4 relative">
+
+        <div className="flex flex-1 max-w-xs sm:max-w-md mx-4 relative">
           <input
             type="text"
-            placeholder="Search assets, tickers, keywords..."
+            placeholder="Search assets, tickers…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-[#18181b] border border-zinc-800 rounded px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
@@ -102,6 +111,7 @@ export default function Home() {
             </button>
           )}
         </div>
+
         <div className="flex items-center gap-1.5 bg-green-950/20 px-2.5 py-1 rounded border border-green-900/30">
           <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
           <span className="text-[10px] font-bold text-green-400 tracking-wide uppercase">
@@ -110,20 +120,43 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Grid Area */}
-      <main className="flex-1 grid grid-cols-12 overflow-hidden bg-[#09090b]">
-        {/* Left Pane: News Feed */}
-        <div className="col-span-3 border-r border-zinc-800 flex flex-col overflow-hidden bg-[#09090b] relative">
+      {/* ── Main Content Area ───────────────────────────────────────────── */}
+      {/*
+        Desktop (md+): rigid 12-column grid, all panes visible side-by-side.
+        Mobile (<md):  single-column flex, only the active tab's pane shown.
+      */}
+      <main className="flex-1 overflow-hidden bg-[#09090b]
+                       flex flex-col
+                       md:grid md:grid-cols-12">
+
+        {/* ── LEFT PANE: News Feed ──────────────────────────────────────── */}
+        {/*
+          Desktop: always visible as col-span-3.
+          Mobile: shown only when activeTab === 'feed'.
+        */}
+        <div className={`
+          border-zinc-800 bg-[#09090b] relative flex flex-col overflow-hidden
+          md:col-span-3 md:border-r md:flex
+          ${isFeedVisible ? 'flex flex-1' : 'hidden'}
+        `}>
           <TerminalErrorBoundary isActive={feedError}>
+            {/* Pane header */}
             <div className="h-8 border-b border-zinc-800 flex items-center px-3 bg-zinc-900/50 shrink-0">
               <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
                 Event Stream
               </span>
+              {events.length > 0 && (
+                <span className="ml-auto text-[9px] font-mono text-zinc-600">
+                  {filteredEvents.length} events
+                </span>
+              )}
             </div>
+
+            {/* Scrollable feed list — overflow-y-auto ensures graceful scrolling */}
             <div className="flex-1 overflow-y-auto">
               {loading && events.length === 0 ? (
-                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
-                  Loading Data...
+                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase animate-pulse">
+                  Fetching data stream...
                 </div>
               ) : filteredEvents.length > 0 ? (
                 filteredEvents.map((event) => (
@@ -131,7 +164,7 @@ export default function Home() {
                     key={event.id}
                     event={event}
                     isActive={selectedFeedItem?.id === event.id}
-                    onSelect={() => setSelectedFeedItem(event)}
+                    onSelect={() => handleSelect(event)}
                   />
                 ))
               ) : (
@@ -143,27 +176,67 @@ export default function Home() {
           </TerminalErrorBoundary>
         </div>
 
-        {/* Right Pane: Charts & Analysis */}
-        <div className={`col-span-9 flex flex-col overflow-hidden bg-[#09090b] transition-all duration-300 relative ${
-          selectedFeedItem 
-            ? 'ring-1 ring-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] z-10' 
-            : ''
-        }`}>
-          {/* Top Right: TradingView Chart */}
-          <div className="flex-[3] border-b border-zinc-800 overflow-hidden relative">
+        {/* ── RIGHT PANE: Chart + Analysis ─────────────────────────────── */}
+        {/*
+          Desktop: always visible as col-span-9 with neon glow when active.
+          Mobile: chart pane shown for 'chart' tab, analysis for 'analysis' tab.
+        */}
+        <div className={`
+          bg-[#09090b] transition-all duration-300 relative
+          md:col-span-9 md:flex md:flex-col md:overflow-hidden
+          ${selectedFeedItem ? 'md:ring-1 md:ring-cyan-500/30 md:shadow-[0_0_15px_rgba(6,182,212,0.15)] md:z-10' : ''}
+          ${(isChartVisible || isAnalysisVisible) ? 'flex flex-col flex-1 overflow-hidden' : 'hidden md:flex'}
+        `}>
+
+          {/* Chart sub-pane */}
+          <div className={`
+            border-zinc-800 overflow-hidden relative
+            md:flex-[3] md:border-b md:block
+            ${isChartVisible ? 'flex-1' : 'hidden md:block'}
+          `}>
             <TerminalErrorBoundary>
               <ChartPane event={selectedFeedItem} />
             </TerminalErrorBoundary>
           </div>
 
-          {/* Bottom Right: AI Analysis */}
-          <div className="flex-[2] overflow-hidden relative bg-[#09090b]">
+          {/* Analysis sub-pane */}
+          <div className={`
+            overflow-hidden relative bg-[#09090b]
+            md:flex-[2] md:block
+            ${isAnalysisVisible ? 'flex-1' : 'hidden md:block'}
+          `}>
             <TerminalErrorBoundary>
               <AnalysisPane event={selectedFeedItem} />
             </TerminalErrorBoundary>
           </div>
         </div>
       </main>
+
+      {/* ── Mobile Tab Bar ─────────────────────────────────────────────── */}
+      {/* Hidden on desktop (md+). Terminal-style tab switcher for mobile. */}
+      <nav className="md:hidden shrink-0 h-12 bg-[#0d0d10] border-t border-zinc-800 grid grid-cols-3">
+        {(
+          [
+            { id: 'feed',     label: 'FEED',     icon: '≡' },
+            { id: 'chart',    label: 'CHART',    icon: '⬡' },
+            { id: 'analysis', label: 'ANALYSIS', icon: '◈' },
+          ] as { id: ActiveTab; label: string; icon: string }[]
+        ).map(({ id, label, icon }) => (
+          <button
+            key={id}
+            id={`tab-${id}`}
+            onClick={() => setActiveTab(id)}
+            className={`flex flex-col items-center justify-center gap-0.5 text-[9px] font-mono font-bold tracking-widest uppercase transition-colors ${
+              activeTab === id
+                ? 'text-cyan-400 border-t-2 border-cyan-500 bg-cyan-950/10'
+                : 'text-zinc-600 hover:text-zinc-400 border-t-2 border-transparent'
+            }`}
+          >
+            <span className="text-base leading-none">{icon}</span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

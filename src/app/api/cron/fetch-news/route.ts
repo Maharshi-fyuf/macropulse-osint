@@ -185,7 +185,7 @@ export async function GET(request: Request) {
     newItems.sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime());
 
     // Limit to prevent hitting API rate limits or function timeouts (e.g., free tiers)
-    const MAX_ITEMS_PER_RUN = 3; // Reduced from 10 to prevent Vercel 10s timeouts
+    const MAX_ITEMS_PER_RUN = 15; // Increased from 3 — Vercel Pro/Hobby timeout is 60s; Gemini calls are ~2s each
     const itemsToProcess = newItems.slice(0, MAX_ITEMS_PER_RUN);
 
     // 5. Initialize Gemini SDK

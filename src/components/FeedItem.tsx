@@ -1,4 +1,9 @@
 import React from 'react';
+import { getTradingViewSymbol } from '@/lib/tickerMap';
+
+// Re-export so existing callers (`import { getTradingViewSymbol } from '@/components/FeedItem'`)
+// continue to work without modification.
+export { getTradingViewSymbol };
 
 export interface MarketEvent {
   id: string;
@@ -41,16 +46,6 @@ export function formatTimeAgo(dateString: string): string {
     return `${diffDays}d ago`;
   } catch {
     return 'unknown';
-  }
-}
-
-export function getTradingViewSymbol(assetClass: string | null): string {
-  switch (assetClass) {
-    case 'Energy': return 'NYMEX:CL1!';
-    case 'Metals': return 'OANDA:XAUUSD';
-    case 'Forex': return 'FX:EURUSD';
-    case 'Equities': return 'CME_MINI:ES1!';
-    default: return 'CME_MINI:ES1!';
   }
 }
 
