@@ -38,7 +38,7 @@ const DEFAULT_FEEDS = [
   'https://www.theguardian.com/business/economics/rss',
   'https://feeds.marketwatch.com/marketwatch/topstories/',
   'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
-  'https://www.cnbc.com/id/100003114/device/rss/rss.html',
+  'https://www.moneycontrol.com/rss/economy.xml',
   // Economic Times — default feed (markets/rss.cms has broken doctype declaration)
   'https://economictimes.indiatimes.com/rssfeedsdefault.cms',
   'https://feeds.bloomberg.com/markets/news.rss',

@@ -28,9 +28,13 @@ const AnalysisPane = memo(function AnalysisPane({
   const hasBullish = event.bullish_assets && event.bullish_assets.length > 0;
   const hasBearish = event.bearish_assets && event.bearish_assets.length > 0;
 
-  // Format a price with locale-aware thousands separator, max 2 decimal places
+  const symbol = prediction?.resolvedSymbol || event?.ticker || '';
+  const isIndian = symbol.endsWith('.NS') || symbol.endsWith('.BO') || symbol === '^NSEI' || symbol === '^BSESN';
+  const currencyPrefix = isIndian ? '₹' : '$';
+
+  // Format a price with currency symbol and locale-aware thousands separator, max 2 decimal places
   const fmt = (n: number) =>
-    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    `${currencyPrefix}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="h-full w-full p-6 overflow-y-auto flex flex-col bg-[#09090b]">

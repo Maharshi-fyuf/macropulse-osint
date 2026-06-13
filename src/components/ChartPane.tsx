@@ -7,6 +7,8 @@ import {
   ISeriesApi,
   IPriceLine,
   CandlestickSeries,
+  HistogramSeries,
+  LineSeries,
   LineStyle,
 } from 'lightweight-charts';
 import { MarketEvent } from './FeedItem';
@@ -48,21 +50,53 @@ function ErrorDisplay({ message }: { message: string }) {
   );
 }
 
+// ── Math Helpers ──────────────────────────────────────────────────────────────
+
+function calculateSMA(data: any[], period: number) {
+  const result = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      continue;
+    }
+    let sum = 0;
+    for (let j = 0; j < period; j++) {
+      sum += data[i - j].close;
+    }
+    result.push({ time: data[i].time, value: sum / period });
+  }
+  return result;
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface MemoizedChartProps {
   symbol: string;
   prediction?: PredictionData | null;
+  showSma20: boolean;
+  showSma50: boolean;
+  showVolume: boolean;
 }
 
 /**
- * Inner chart — memoized on `symbol` and `prediction`.
- * Handles fetching OHLC data, rendering the canvas, and drawing GBM PriceLines.
+ * Inner chart — memoized on `symbol` and `prediction` and toggles.
+ * Handles fetching OHLC data, rendering the canvas, drawing SMAs/Volume and GBM PriceLines.
  */
-const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: MemoizedChartProps) {
+const MemoizedChart = memo(function MemoizedChart({
+  symbol,
+  prediction,
+  showSma20,
+  showSma50,
+  showVolume,
+}: MemoizedChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const sma20SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const sma50SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+
+  // Keep a ref to the raw fetched data so we can toggle series without refetching
+  const rawDataRef = useRef<any[]>([]);
 
   // Refs to the two GBM price lines so we can cleanly remove them on update
   const upperLineRef = useRef<IPriceLine | null>(null);
@@ -70,6 +104,9 @@ const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: Memoiz
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isIndian = symbol.endsWith('.NS') || symbol.endsWith('.BO') || symbol === '^NSEI' || symbol === '^BSESN';
+  const currencyPrefix = isIndian ? '₹' : '$';
 
   // ── Effect 1: Initialize chart instance (once on mount) ──────────────────
   useEffect(() => {
@@ -90,6 +127,12 @@ const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: Memoiz
       },
       rightPriceScale: {
         borderColor: '#27272a',
+      },
+      localization: {
+        priceFormatter: (price: number) => {
+          // Fallback to currency prefix format
+          return `${currencyPrefix}${price.toFixed(2)}`;
+        },
       },
       crosshair: {
         mode: 0,
@@ -113,8 +156,43 @@ const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: Memoiz
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
     });
-
     seriesRef.current = series;
+
+    // Volume Series
+    const volumeSeries = chart.addSeries(HistogramSeries, {
+      color: '#3f3f46', // Default color, will be overridden by data
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: '', // Overlay on main chart area
+    });
+    // Scale volume to bottom 20% of the chart
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.8,
+        bottom: 0,
+      },
+    });
+    volumeSeriesRef.current = volumeSeries;
+
+    // SMA Series
+    const sma20Series = chart.addSeries(LineSeries, {
+      color: '#c084fc', // purple-400
+      lineWidth: 2,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    sma20SeriesRef.current = sma20Series;
+
+    const sma50Series = chart.addSeries(LineSeries, {
+      color: '#fb923c', // orange-400
+      lineWidth: 2,
+      crosshairMarkerVisible: false,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    sma50SeriesRef.current = sma50Series;
 
     const handleResize = () => {
       if (chartContainerRef.current) {
@@ -133,10 +211,13 @@ const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: Memoiz
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      volumeSeriesRef.current = null;
+      sma20SeriesRef.current = null;
+      sma50SeriesRef.current = null;
       upperLineRef.current = null;
       lowerLineRef.current = null;
     };
-  }, []); // Run once on mount
+  }, [currencyPrefix]); // Re-create chart if currency prefix changes (symbol change)
 
   // ── Effect 2: Fetch and render OHLC data whenever symbol changes ─────────
   useEffect(() => {
@@ -164,6 +245,7 @@ const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: Memoiz
         }
 
         if (isMounted && seriesRef.current) {
+          rawDataRef.current = json.data;
           seriesRef.current.setData(json.data);
           chartRef.current?.timeScale().fitContent();
           setLoading(false);
@@ -225,6 +307,35 @@ const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: Memoiz
     });
   }, [prediction, loading]);
 
+  // ── Effect 4: Technical Indicators Toggle ─────────────────────────────────
+  useEffect(() => {
+    if (loading || rawDataRef.current.length === 0) return;
+
+    if (showVolume && volumeSeriesRef.current) {
+      // Color volume bars based on close vs open
+      const volumeData = rawDataRef.current.map((d: any) => ({
+        time: d.time,
+        value: d.value, // value is volume
+        color: d.close >= d.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)', // green-500/30 or red-500/30
+      }));
+      volumeSeriesRef.current.setData(volumeData);
+    } else if (volumeSeriesRef.current) {
+      volumeSeriesRef.current.setData([]);
+    }
+
+    if (showSma20 && sma20SeriesRef.current) {
+      sma20SeriesRef.current.setData(calculateSMA(rawDataRef.current, 20));
+    } else if (sma20SeriesRef.current) {
+      sma20SeriesRef.current.setData([]);
+    }
+
+    if (showSma50 && sma50SeriesRef.current) {
+      sma50SeriesRef.current.setData(calculateSMA(rawDataRef.current, 50));
+    } else if (sma50SeriesRef.current) {
+      sma50SeriesRef.current.setData([]);
+    }
+  }, [showVolume, showSma20, showSma50, loading]);
+
   return (
     <div className="relative w-full h-full bg-[#09090b]">
       {loading && (
@@ -272,14 +383,19 @@ const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps)
   const [customSymbol, setCustomSymbol] = useState('');
   const [inputValue, setInputValue] = useState('');
 
+  // Toggles for technical indicators
+  const [showSma20, setShowSma20] = useState(false);
+  const [showSma50, setShowSma50] = useState(false);
+  const [showVolume, setShowVolume] = useState(true);
+
   // Reset custom symbol when a new event is selected
   useEffect(() => {
     setCustomSymbol('');
     setInputValue('');
   }, [event]);
 
-  // If customSymbol is set, use it. Otherwise use event.ticker, or default to S&P 500
-  const symbol = customSymbol || event?.ticker || '^GSPC';
+  // If customSymbol is set, use it. Otherwise use event.ticker, or default to Nifty 50
+  const symbol = customSymbol || event?.ticker || '^NSEI';
 
   // Only show prediction overlay when the chart is displaying the event's natural ticker
   // (not a user-overridden custom symbol) to prevent mismatched bounds.
@@ -293,9 +409,9 @@ const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps)
   };
 
   return (
-    <div className="h-full w-full bg-[#09090b] relative overflow-hidden">
+    <div className="h-full w-full bg-[#09090b] relative overflow-hidden flex flex-col">
       {/* Header bar */}
-      <div className="absolute top-0 left-0 right-0 h-10 border-b border-zinc-800 bg-zinc-900/50 z-20 flex items-center justify-between px-3">
+      <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 z-20 flex items-center justify-between px-3 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest pointer-events-none">
             Native Chart
@@ -310,6 +426,33 @@ const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps)
           )}
         </div>
 
+        {/* Technical Indicators Toolbar */}
+        <div className="flex items-center bg-[#09090b] border border-zinc-800 rounded px-1.5 py-0.5 ml-auto mr-4 hidden sm:flex">
+          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest pr-2 mr-2 border-r border-zinc-800 pointer-events-none">
+            Indicators
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setShowSma20(!showSma20)}
+              className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded transition-colors ${showSma20 ? 'bg-purple-900/40 text-purple-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              SMA 20
+            </button>
+            <button
+              onClick={() => setShowSma50(!showSma50)}
+              className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded transition-colors ${showSma50 ? 'bg-orange-900/40 text-orange-400' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              SMA 50
+            </button>
+            <button
+              onClick={() => setShowVolume(!showVolume)}
+              className={`text-[9px] font-mono font-bold uppercase px-2 py-0.5 rounded transition-colors ${showVolume ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              VOL
+            </button>
+          </div>
+        </div>
+
         {/* Symbol Search Form */}
         <form onSubmit={handleSearch} className="flex items-center gap-2">
           <input
@@ -317,7 +460,7 @@ const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps)
             placeholder="Symbol (e.g. AAPL)"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            className="w-32 bg-[#18181b] border border-zinc-800 rounded px-2 py-1 text-[10px] font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
+            className="w-24 sm:w-32 bg-[#18181b] border border-zinc-800 rounded px-2 py-1 text-[10px] font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
           />
           <button
             type="submit"
@@ -328,9 +471,15 @@ const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps)
         </form>
       </div>
 
-      {/* Main chart area (offset for header) */}
-      <div className="absolute top-10 left-0 right-0 bottom-0">
-        <MemoizedChart symbol={symbol} prediction={activePrediction} />
+      {/* Main chart area */}
+      <div className="flex-1 relative">
+        <MemoizedChart
+          symbol={symbol}
+          prediction={activePrediction}
+          showSma20={showSma20}
+          showSma50={showSma50}
+          showVolume={showVolume}
+        />
       </div>
     </div>
   );

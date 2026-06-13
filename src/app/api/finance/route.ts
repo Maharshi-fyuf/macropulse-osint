@@ -52,9 +52,9 @@ function hasSuffix(ticker: string): boolean {
 
 /**
  * Formats a validated Yahoo Finance chart result into the OHLC array
- * expected by lightweight-charts: [{ time: 'YYYY-MM-DD', open, high, low, close }]
+ * expected by lightweight-charts: [{ time: 'YYYY-MM-DD', open, high, low, close, value }]
  */
-function formatOHLC(result: any): Array<{ time: string; open: number; high: number; low: number; close: number }> {
+function formatOHLC(result: any): Array<{ time: string; open: number; high: number; low: number; close: number; value: number }> {
   const timestamps: number[] = result.timestamp;
   const quote = result.indicators.quote[0];
   const formatted = [];
@@ -64,16 +64,17 @@ function formatOHLC(result: any): Array<{ time: string; open: number; high: numb
     const high = quote.high[i];
     const low = quote.low[i];
     const close = quote.close[i];
+    const volume = quote.volume[i];
 
     // Skip null / undefined values (Yahoo returns nulls for non-trading days)
-    if (open == null || high == null || low == null || close == null) continue;
+    if (open == null || high == null || low == null || close == null || volume == null) continue;
 
     const date = new Date(timestamps[i] * 1000);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
 
-    formatted.push({ time: `${year}-${month}-${day}`, open, high, low, close });
+    formatted.push({ time: `${year}-${month}-${day}`, open, high, low, close, value: volume });
   }
 
   return formatted;
