@@ -44,7 +44,19 @@ export async function GET(request: Request) {
     const feedsStr = process.env.RSS_FEEDS;
     const feeds = feedsStr ? feedsStr.split(',').map((f) => f.trim()) : DEFAULT_FEEDS;
 
-    const parser = new Parser();
+    const parser = new Parser({
+      customFields: {
+        item: [
+          ['media:content', 'mediaContent'],
+          ['dc:creator', 'creator'],
+        ],
+      },
+      headers: {
+        'User-Agent': 'MacroPulse/1.0 (RSS Reader; +https://macropulse-terminal-solos.vercel.app)',
+        'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*',
+      },
+    });
+
     const allItems: Array<{
       title: string;
       link: string;
@@ -53,32 +65,66 @@ export async function GET(request: Request) {
       source: string;
     }> = [];
 
+    // Track per-feed results for debugging
+    const feedResults: Array<{ url: string; status: string; itemCount?: number; error?: string }> = [];
+
     // 3. Fetch Feeds Concurrently with Individual Error Handling
-    const feedPromises = feeds.map(async (url) => {
+    const feedPromises = feeds.map(async (feedUrl) => {
       try {
-        const parsedFeed = await parser.parseURL(url);
+        // Use fetch() with proper headers instead of parser.parseURL()
+        // to avoid being blocked by news sites
+        const response = await fetch(feedUrl, {
+          headers: {
+            'User-Agent': 'MacroPulse/1.0 (RSS Reader; +https://macropulse-terminal-solos.vercel.app)',
+            'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*',
+          },
+          signal: AbortSignal.timeout(15000), // 15s timeout per feed
+        });
+
+        if (!response.ok) {
+          feedResults.push({ url: feedUrl, status: 'http_error', error: `HTTP ${response.status} ${response.statusText}` });
+          return;
+        }
+
+        const xml = await response.text();
+        const parsedFeed = await parser.parseString(xml);
         const feedTitle = parsedFeed.title || 'Unknown Source';
+        let itemCount = 0;
 
         parsedFeed.items.forEach((item) => {
-          if (item.title && item.link) {
+          // Accept items with at least a title (link can sometimes be missing in Atom)
+          const itemLink = item.link || item.guid || '';
+          if (item.title && itemLink) {
             allItems.push({
               title: item.title,
-              link: item.link,
-              content: item.contentSnippet || item.content || item.title,
+              link: itemLink,
+              content: item.contentSnippet || item.content || item.summary || item.title,
               pubDate: parseSafeDate(item.isoDate || item.pubDate),
               source: feedTitle,
             });
+            itemCount++;
           }
         });
-      } catch (feedError) {
-        console.error(`Error parsing feed URL: ${url}`, feedError);
+
+        feedResults.push({ url: feedUrl, status: 'ok', itemCount });
+      } catch (feedError: any) {
+        const errorMsg = feedError?.message || String(feedError);
+        console.error(`Error fetching/parsing feed: ${feedUrl}`, errorMsg);
+        feedResults.push({ url: feedUrl, status: 'error', error: errorMsg });
       }
     });
 
     await Promise.all(feedPromises);
 
     if (allItems.length === 0) {
-      return NextResponse.json({ message: 'No articles found in RSS feeds' }, { status: 200 });
+      return NextResponse.json(
+        {
+          message: 'No articles found in RSS feeds',
+          feedResults,
+          debug: { feedCount: feeds.length, feedUrls: feeds },
+        },
+        { status: 200 }
+      );
     }
 
     // 4. Deduplicate Against Existing Database URLs
@@ -91,7 +137,7 @@ export async function GET(request: Request) {
 
     if (dbError) {
       console.error('Supabase query error:', dbError);
-      return NextResponse.json({ error: 'Database verification failed' }, { status: 500 });
+      return NextResponse.json({ error: 'Database verification failed', details: dbError.message }, { status: 500 });
     }
 
     const existingUrlsSet = new Set(existingEvents?.map((e) => e.url) || []);
@@ -103,6 +149,9 @@ export async function GET(request: Request) {
           message: 'No new articles to process',
           processed: 0,
           inserted: 0,
+          total_from_feeds: allItems.length,
+          already_in_db: existingUrlsSet.size,
+          feedResults,
         },
         { status: 200 }
       );
@@ -241,6 +290,7 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
         attempted_processing: itemsToProcess.length,
         successfully_inserted: insertedCount,
         processed: processedEvents,
+        feedResults,
       },
       { status: 200 }
     );
