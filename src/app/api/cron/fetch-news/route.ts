@@ -132,21 +132,40 @@ export async function GET(request: Request) {
       );
     }
 
-    // 4. Deduplicate Against Existing Database URLs
-    const urls = allItems.map((item) => item.link);
+    // 4. Deduplicate Against Existing Database URLs (resilient — don't abort on failure)
+    let newItems = [...allItems];
+    let dedupStatus = 'skipped';
 
-    const { data: existingEvents, error: dbError } = await supabaseAdmin
-      .from('events')
-      .select('url')
-      .in('url', urls);
+    try {
+      const urls = allItems.map((item) => item.link);
 
-    if (dbError) {
-      console.error('Supabase query error:', dbError);
-      return NextResponse.json({ error: 'Database verification failed', details: dbError.message }, { status: 500 });
+      // Batch the .in() query to avoid URL-length limits (max ~50 per batch)
+      const BATCH_SIZE = 50;
+      const existingUrlsSet = new Set<string>();
+
+      for (let i = 0; i < urls.length; i += BATCH_SIZE) {
+        const batch = urls.slice(i, i + BATCH_SIZE);
+        const { data: existingEvents, error: dbError } = await supabaseAdmin
+          .from('events')
+          .select('url')
+          .in('url', batch);
+
+        if (dbError) {
+          console.warn('Supabase dedup query warning (non-fatal):', dbError.message);
+          // Continue with remaining batches — partial dedup is better than none
+          continue;
+        }
+
+        existingEvents?.forEach((e) => existingUrlsSet.add(e.url));
+      }
+
+      newItems = allItems.filter((item) => !existingUrlsSet.has(item.link));
+      dedupStatus = `checked (${existingUrlsSet.size} already in DB)`;
+    } catch (dedupError: any) {
+      console.warn('Dedup failed entirely (network issue?), processing all items:', dedupError?.message);
+      dedupStatus = `failed: ${dedupError?.message || 'unknown error'}`;
+      // newItems remains as all items — DB unique constraint will prevent true duplicates
     }
-
-    const existingUrlsSet = new Set(existingEvents?.map((e) => e.url) || []);
-    const newItems = allItems.filter((item) => !existingUrlsSet.has(item.link));
 
     if (newItems.length === 0) {
       return NextResponse.json(
@@ -155,7 +174,7 @@ export async function GET(request: Request) {
           processed: 0,
           inserted: 0,
           total_from_feeds: allItems.length,
-          already_in_db: existingUrlsSet.size,
+          dedupStatus,
           feedResults,
         },
         { status: 200 }
@@ -295,6 +314,7 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
         attempted_processing: itemsToProcess.length,
         successfully_inserted: insertedCount,
         processed: processedEvents,
+        dedupStatus,
         feedResults,
       },
       { status: 200 }
