@@ -9,16 +9,18 @@ export interface MarketEvent {
   created_at: string;
   is_market_moving: boolean;
   rationale: string | null;
+  content?: string | null;
   severity_score: number;
   asset_class: string | null;
   bullish_assets: string[];
   bearish_assets: string[];
+  ticker: string;
 }
 
 interface FeedItemProps {
   event: MarketEvent;
-  isSelected: boolean;
-  onClick: () => void;
+  isActive: boolean;
+  onSelect: () => void;
 }
 
 export function formatTimeAgo(dateString: string): string {
@@ -42,7 +44,17 @@ export function formatTimeAgo(dateString: string): string {
   }
 }
 
-export default function FeedItem({ event, isSelected, onClick }: FeedItemProps) {
+export function getTradingViewSymbol(assetClass: string | null): string {
+  switch (assetClass) {
+    case 'Energy': return 'NYMEX:CL1!';
+    case 'Metals': return 'OANDA:XAUUSD';
+    case 'Forex': return 'FX:EURUSD';
+    case 'Equities': return 'CME_MINI:ES1!';
+    default: return 'CME_MINI:ES1!';
+  }
+}
+
+export default function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
   const getSeverityStyle = (score: number) => {
     if (score >= 8) return 'text-red-500 bg-red-500/10 border-red-500/20';
     if (score >= 5) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
@@ -51,9 +63,9 @@ export default function FeedItem({ event, isSelected, onClick }: FeedItemProps) 
 
   return (
     <div
-      onClick={onClick}
+      onClick={onSelect}
       className={`cursor-pointer border-b border-zinc-800 p-3 transition-colors ${
-        isSelected ? 'bg-zinc-800/50' : 'hover:bg-zinc-900'
+        isActive ? 'bg-zinc-800/50' : 'hover:bg-zinc-900'
       }`}
     >
       <div className="flex justify-between items-start mb-1.5">
@@ -68,7 +80,7 @@ export default function FeedItem({ event, isSelected, onClick }: FeedItemProps) 
           {event.severity_score}/10
         </span>
       </div>
-      <h3 className={`text-xs font-semibold leading-snug ${isSelected ? 'text-white' : 'text-zinc-300'}`}>
+      <h3 className={`text-xs font-semibold leading-snug ${isActive ? 'text-white' : 'text-zinc-300'}`}>
         {event.title}
       </h3>
     </div>

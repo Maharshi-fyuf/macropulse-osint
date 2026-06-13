@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase-client';
-import FeedItem, { MarketEvent } from '@/components/FeedItem';
+import FeedItem, { MarketEvent, getTradingViewSymbol } from '@/components/FeedItem';
 import AnalysisPane from '@/components/AnalysisPane';
 import ChartPane from '@/components/ChartPane';
 
 export default function Home() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<MarketEvent | null>(null);
+  const [selectedFeedItem, setSelectedFeedItem] = useState<MarketEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -23,9 +23,16 @@ export default function Home() {
       if (error) {
         console.error('Error fetching events:', error);
       } else if (data && data.length > 0) {
-        setEvents(data as MarketEvent[]);
+        // Map database events to include requested fields (content & ticker)
+        const mappedEvents = data.map((event: any) => ({
+          ...event,
+          content: event.rationale,
+          ticker: getTradingViewSymbol(event.asset_class)
+        })) as MarketEvent[];
+
+        setEvents(mappedEvents);
         // Auto-select the most recent event if nothing is selected
-        setSelectedEvent((prev) => prev || (data[0] as MarketEvent));
+        setSelectedFeedItem((prev) => prev || mappedEvents[0]);
       }
     } catch (err) {
       console.error('Failed to fetch events:', err);
@@ -117,8 +124,8 @@ export default function Home() {
                 <FeedItem
                   key={event.id}
                   event={event}
-                  isSelected={selectedEvent?.id === event.id}
-                  onClick={() => setSelectedEvent(event)}
+                  isActive={selectedFeedItem?.id === event.id}
+                  onSelect={() => setSelectedFeedItem(event)}
                 />
               ))
             ) : (
@@ -133,12 +140,12 @@ export default function Home() {
         <div className="col-span-9 flex flex-col overflow-hidden bg-[#09090b]">
           {/* Top Right: TradingView Chart */}
           <div className="flex-[3] border-b border-zinc-800 overflow-hidden relative">
-            <ChartPane event={selectedEvent} />
+            <ChartPane event={selectedFeedItem} />
           </div>
 
           {/* Bottom Right: AI Analysis */}
           <div className="flex-[2] overflow-hidden relative bg-[#09090b]">
-            <AnalysisPane event={selectedEvent} />
+            <AnalysisPane event={selectedFeedItem} />
           </div>
         </div>
       </main>
