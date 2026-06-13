@@ -45,7 +45,7 @@ export function proxy(request: NextRequest) {
       "default-src 'self'",
       // TradingView widgets require their own origin for iframes & scripts
       "script-src 'self' 'unsafe-inline' https://s3.tradingview.com https://static.tradingview.com",
-      "frame-src 'self' https://s3.tradingview.com https://www.tradingview.com",
+      "frame-src 'self' https://s3.tradingview.com https://www.tradingview.com https://s.tradingview.com",
       "img-src 'self' data: https://s3.tradingview.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
