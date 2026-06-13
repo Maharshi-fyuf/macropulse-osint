@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
+import { type PredictionData } from '@/lib/types';
 import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import AnalysisPane from '@/components/AnalysisPane';
 import ChartPane from '@/components/ChartPane';
@@ -21,6 +22,10 @@ export default function Home() {
   const [feedError, setFeedError] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('Live');
+
+  // ── Prediction state (lifted here so both ChartPane and AnalysisPane share it) ──
+  const [prediction, setPrediction] = useState<PredictionData | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     // Timeout to prevent permanent hang if browser drops the request silently
@@ -86,6 +91,49 @@ export default function Home() {
     const interval = setInterval(fetchEvents, 60000);
     return () => clearInterval(interval);
   }, [fetchEvents]);
+
+  // ── Prediction: compute sentiment score from event metadata ─────────────
+  // Net-sum approach: bullish vs bearish array length determines direction;
+  // severity_score (1–10) scales magnitude → result is in [-1.0, +1.0].
+  const computeSentimentScore = useCallback((event: MarketEvent): number => {
+    const bullishCount = event.bullish_assets?.length ?? 0;
+    const bearishCount = event.bearish_assets?.length ?? 0;
+    const direction = bullishCount >= bearishCount ? 1 : -1;
+    return direction * (event.severity_score / 10);
+  }, []);
+
+  // ── Prediction: fetch GBM projection when selected event changes ─────────
+  const fetchPrediction = useCallback(async (event: MarketEvent) => {
+    const ticker = event.ticker;
+    if (!ticker) {
+      setPrediction(null);
+      return;
+    }
+    setPredictionLoading(true);
+    setPrediction(null);
+    try {
+      const score = computeSentimentScore(event);
+      const res = await fetch(
+        `/api/predict?symbol=${encodeURIComponent(ticker)}&sentimentScore=${score}&days=5`
+      );
+      if (!res.ok) return; // Non-fatal — chart still works without overlay
+      const data: PredictionData = await res.json();
+      if ((data as any).error) return;
+      setPrediction(data);
+    } catch {
+      // Prediction is purely additive — never block the core UI on its failure
+    } finally {
+      setPredictionLoading(false);
+    }
+  }, [computeSentimentScore]);
+
+  useEffect(() => {
+    if (!selectedFeedItem) {
+      setPrediction(null);
+      return;
+    }
+    fetchPrediction(selectedFeedItem);
+  }, [selectedFeedItem, fetchPrediction]);
 
   // ── Stable handlers — prevents FeedItem memo from being busted ─────────
   const handleSelect = useCallback((event: MarketEvent) => {
@@ -258,7 +306,7 @@ export default function Home() {
             ${isChartVisible ? 'flex-1' : 'hidden md:block'}
           `}>
             <TerminalErrorBoundary>
-              <ChartPane event={selectedFeedItem} />
+              <ChartPane event={selectedFeedItem} prediction={prediction} />
             </TerminalErrorBoundary>
           </div>
 
@@ -269,7 +317,11 @@ export default function Home() {
             ${isAnalysisVisible ? 'flex-1' : 'hidden md:block'}
           `}>
             <TerminalErrorBoundary>
-              <AnalysisPane event={selectedFeedItem} />
+              <AnalysisPane
+                event={selectedFeedItem}
+                prediction={prediction}
+                predictionLoading={predictionLoading}
+              />
             </TerminalErrorBoundary>
           </div>
         </div>

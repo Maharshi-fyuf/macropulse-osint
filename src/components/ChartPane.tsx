@@ -1,15 +1,24 @@
 'use client';
 
 import React, { memo, useEffect, useRef, useState } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickSeries } from 'lightweight-charts';
+import {
+  createChart,
+  IChartApi,
+  ISeriesApi,
+  IPriceLine,
+  CandlestickSeries,
+  LineStyle,
+} from 'lightweight-charts';
 import { MarketEvent } from './FeedItem';
+import { type PredictionData } from '@/lib/types';
 
 interface ChartPaneProps {
   event: MarketEvent | null;
+  prediction?: PredictionData | null;
 }
 
 /** Minimal loading skeleton that matches the terminal aesthetic. */
-function ChartSkeleton({ text = "Loading chart engine…" }: { text?: string }) {
+function ChartSkeleton({ text = 'Loading chart engine…' }: { text?: string }) {
   return (
     <div className="h-full w-full bg-[#09090b] flex items-center justify-center">
       <div className="flex flex-col items-center gap-2">
@@ -30,9 +39,7 @@ function ErrorDisplay({ message }: { message: string }) {
         <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest">
           Chart Failed to Load
         </span>
-        <span className="text-xs text-zinc-500 mt-2">
-          {message}
-        </span>
+        <span className="text-xs text-zinc-500 mt-2">{message}</span>
         <span className="text-[9px] text-zinc-600 mt-2 font-mono">
           If this is a regional stock, try appending the exchange suffix (e.g. .NS or .L)
         </span>
@@ -41,78 +48,36 @@ function ErrorDisplay({ message }: { message: string }) {
   );
 }
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface MemoizedChartProps {
+  symbol: string;
+  prediction?: PredictionData | null;
+}
+
 /**
- * Inner chart — memoized on `symbol` so it doesn't remount when parent updates
- * unnecessarily. Handles fetching data and rendering the canvas chart.
+ * Inner chart — memoized on `symbol` and `prediction`.
+ * Handles fetching OHLC data, rendering the canvas, and drawing GBM PriceLines.
  */
-const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }) {
+const MemoizedChart = memo(function MemoizedChart({ symbol, prediction }: MemoizedChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+
+  // Refs to the two GBM price lines so we can cleanly remove them on update
+  const upperLineRef = useRef<IPriceLine | null>(null);
+  const lowerLineRef = useRef<IPriceLine | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch data and update chart
-  useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
-
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const res = await fetch(`/api/finance?ticker=${encodeURIComponent(symbol)}`, {
-          signal: controller.signal
-        });
-        
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP error ${res.status}`);
-        }
-        
-        const json = await res.json();
-        
-        if (!json.data || !Array.isArray(json.data) || json.data.length === 0) {
-          throw new Error("No data returned for this symbol.");
-        }
-
-        if (isMounted && seriesRef.current) {
-          seriesRef.current.setData(json.data);
-          chartRef.current?.timeScale().fitContent();
-          setLoading(false);
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        console.error("Error fetching chart data:", err);
-        if (isMounted) {
-          setError(err.message || "Failed to fetch data");
-          setLoading(false);
-        }
-      }
-    }
-
-    // Give the chart a moment to initialize before fetching data
-    const timeoutId = setTimeout(() => {
-      fetchData();
-    }, 50);
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-      clearTimeout(timeoutId);
-    };
-  }, [symbol]);
-
-  // Initialize chart instance
+  // ── Effect 1: Initialize chart instance (once on mount) ──────────────────
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
-    // Create chart
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { color: '#09090b' }, // Dark background matching our theme
+        background: { color: '#09090b' },
         textColor: '#a1a1aa', // zinc-400
       },
       grid: {
@@ -127,7 +92,7 @@ const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }
         borderColor: '#27272a',
       },
       crosshair: {
-        mode: 0, // Normal crosshair
+        mode: 0,
         vertLine: {
           color: '#3f3f46',
           labelBackgroundColor: '#27272a',
@@ -141,18 +106,16 @@ const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }
 
     chartRef.current = chart;
 
-    // Add candlestick series
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: '#22c55e', // green-500
+      upColor: '#22c55e',   // green-500
       downColor: '#ef4444', // red-500
       borderVisible: false,
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
     });
-    
+
     seriesRef.current = series;
 
-    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current) {
         chart.applyOptions({
@@ -163,8 +126,6 @@ const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }
     };
 
     window.addEventListener('resize', handleResize);
-    
-    // Initial size
     handleResize();
 
     return () => {
@@ -172,8 +133,97 @@ const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
+      upperLineRef.current = null;
+      lowerLineRef.current = null;
     };
   }, []); // Run once on mount
+
+  // ── Effect 2: Fetch and render OHLC data whenever symbol changes ─────────
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    async function fetchData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const res = await fetch(`/api/finance?ticker=${encodeURIComponent(symbol)}`, {
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error ${res.status}`);
+        }
+
+        const json = await res.json();
+
+        if (!json.data || !Array.isArray(json.data) || json.data.length === 0) {
+          throw new Error('No data returned for this symbol.');
+        }
+
+        if (isMounted && seriesRef.current) {
+          seriesRef.current.setData(json.data);
+          chartRef.current?.timeScale().fitContent();
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.error('Error fetching chart data:', err);
+        if (isMounted) {
+          setError(err.message || 'Failed to fetch data');
+          setLoading(false);
+        }
+      }
+    }
+
+    // Give the chart a moment to initialize before fetching
+    const timeoutId = setTimeout(fetchData, 50);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [symbol]);
+
+  // ── Effect 3: Overlay GBM PriceLines whenever prediction or loading changes
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+
+    // Always remove stale lines first
+    if (upperLineRef.current) {
+      try { series.removePriceLine(upperLineRef.current); } catch { /* already removed */ }
+      upperLineRef.current = null;
+    }
+    if (lowerLineRef.current) {
+      try { series.removePriceLine(lowerLineRef.current); } catch { /* already removed */ }
+      lowerLineRef.current = null;
+    }
+
+    // Only draw new lines once data has loaded and prediction is available
+    if (loading || !prediction) return;
+
+    upperLineRef.current = series.createPriceLine({
+      price: prediction.upperBound,
+      color: 'rgba(6, 182, 212, 0.75)',   // cyan-500
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: `↑ +1σ (${prediction.horizon}d)`,
+    });
+
+    lowerLineRef.current = series.createPriceLine({
+      price: prediction.lowerBound,
+      color: 'rgba(239, 68, 68, 0.75)',   // red-500
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: `↓ -1σ (${prediction.horizon}d)`,
+    });
+  }, [prediction, loading]);
 
   return (
     <div className="relative w-full h-full bg-[#09090b]">
@@ -182,33 +232,43 @@ const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }
           <ChartSkeleton text={`Loading ${symbol} data…`} />
         </div>
       )}
-      
+
       {error && (
         <div className="absolute inset-0 z-20">
           <ErrorDisplay message={error} />
         </div>
       )}
 
-      {/* Chart container */}
-      <div 
-        ref={chartContainerRef} 
+      {/* Canvas container */}
+      <div
+        ref={chartContainerRef}
         className="w-full h-full"
         style={{ position: 'absolute', inset: 0 }}
       />
-      
+
       {/* Symbol watermark overlay */}
       <div className="absolute top-4 left-4 pointer-events-none z-10 mix-blend-screen opacity-20 text-white font-mono font-bold text-4xl tracking-widest uppercase select-none">
         {symbol}
       </div>
+
+      {/* GBM badge — shown only when prediction lines are active */}
+      {!loading && prediction && (
+        <div className="absolute bottom-2 right-2 pointer-events-none z-10 flex items-center gap-1.5 bg-[#09090b]/70 border border-cyan-900/40 rounded px-2 py-1">
+          <span className="w-1.5 h-1.5 bg-cyan-500 rounded-full animate-pulse" />
+          <span className="text-[9px] font-mono text-cyan-600 uppercase tracking-widest">
+            GBM · 1σ · {prediction.horizon}d
+          </span>
+        </div>
+      )}
     </div>
   );
 });
 
 /**
  * ChartPane — memoized on the event reference.
- * The outer wrapper only re-renders when the selected event changes.
+ * The outer wrapper only re-renders when the selected event or prediction changes.
  */
-const ChartPane = memo(function ChartPane({ event }: ChartPaneProps) {
+const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps) {
   const [customSymbol, setCustomSymbol] = useState('');
   const [inputValue, setInputValue] = useState('');
 
@@ -221,6 +281,10 @@ const ChartPane = memo(function ChartPane({ event }: ChartPaneProps) {
   // If customSymbol is set, use it. Otherwise use event.ticker, or default to S&P 500
   const symbol = customSymbol || event?.ticker || '^GSPC';
 
+  // Only show prediction overlay when the chart is displaying the event's natural ticker
+  // (not a user-overridden custom symbol) to prevent mismatched bounds.
+  const activePrediction = customSymbol ? null : prediction;
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputValue.trim()) {
@@ -230,17 +294,22 @@ const ChartPane = memo(function ChartPane({ event }: ChartPaneProps) {
 
   return (
     <div className="h-full w-full bg-[#09090b] relative overflow-hidden">
-      {/* Header bar for chart */}
+      {/* Header bar */}
       <div className="absolute top-0 left-0 right-0 h-10 border-b border-zinc-800 bg-zinc-900/50 z-20 flex items-center justify-between px-3">
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest pointer-events-none">
-            Native Chart 
+            Native Chart
           </span>
-          <span className="ml-2 text-[10px] font-mono text-cyan-500 uppercase tracking-widest pointer-events-none">
+          <span className="text-[10px] font-mono text-cyan-500 uppercase tracking-widest pointer-events-none">
             {symbol}
           </span>
+          {activePrediction && (
+            <span className="text-[9px] font-mono text-cyan-700 uppercase tracking-widest pointer-events-none border border-cyan-900/50 rounded px-1 py-0.5">
+              GBM active
+            </span>
+          )}
         </div>
-        
+
         {/* Symbol Search Form */}
         <form onSubmit={handleSearch} className="flex items-center gap-2">
           <input
@@ -258,10 +327,10 @@ const ChartPane = memo(function ChartPane({ event }: ChartPaneProps) {
           </button>
         </form>
       </div>
-      
+
       {/* Main chart area (offset for header) */}
       <div className="absolute top-10 left-0 right-0 bottom-0">
-        <MemoizedChart symbol={symbol} />
+        <MemoizedChart symbol={symbol} prediction={activePrediction} />
       </div>
     </div>
   );
