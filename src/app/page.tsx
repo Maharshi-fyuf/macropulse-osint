@@ -19,15 +19,20 @@ export default function Home() {
   const [feedError, setFeedError] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
 
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
   // ── Stable fetch function — won't cause useEffect re-fires ─────────────
   const fetchEvents = useCallback(async () => {
     try {
       setFeedError(false);
-      const { data, error } = await supabase
+      setDebugInfo({ status: 'fetching' });
+      const { data, error, status, statusText } = await supabase
         .from('events')
         .select('*')
         .order('published_at', { ascending: false })
         .limit(50);
+
+      setDebugInfo({ status: 'done', error, dataCount: data?.length, httpStatus: status, httpStatusText: statusText });
 
       if (error) {
         console.error('Error fetching events:', error);
@@ -35,15 +40,24 @@ export default function Home() {
       } else if (data && data.length > 0) {
         const mappedEvents = data.map((event: any) => ({
           ...event,
-          content: event.rationale,
+          title: event.title || 'Untitled Event',
+          source: event.source || 'Unknown Source',
+          published_at: event.published_at || event.created_at || new Date().toISOString(),
+          content: event.rationale || '',
+          severity_score: event.severity_score || 0,
+          bullish_assets: Array.isArray(event.bullish_assets) ? event.bullish_assets : [],
+          bearish_assets: Array.isArray(event.bearish_assets) ? event.bearish_assets : [],
           ticker: getTradingViewSymbol(event.asset_class),
         })) as MarketEvent[];
 
         setEvents(mappedEvents);
         setSelectedFeedItem((prev) => prev || mappedEvents[0]);
+      } else {
+        setDebugInfo({ status: 'empty_data_returned', data });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to fetch events:', err);
+      setDebugInfo({ status: 'caught_exception', message: err?.message, stack: err?.stack });
       setFeedError(true);
     } finally {
       setLoading(false);
@@ -141,6 +155,11 @@ export default function Home() {
           ${isFeedVisible ? 'flex flex-1' : 'hidden'}
         `}>
           <TerminalErrorBoundary isActive={feedError}>
+            {debugInfo && (
+              <div className="bg-red-900/50 p-2 m-2 text-[10px] text-red-200 border border-red-500 font-mono break-words overflow-y-auto max-h-40">
+                DEBUG INFO: {JSON.stringify(debugInfo, null, 2)}
+              </div>
+            )}
             <div className="h-8 border-b border-zinc-800 flex items-center px-3 bg-zinc-900/50 shrink-0">
               <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
                 Event Stream
