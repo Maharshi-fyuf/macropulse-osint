@@ -7,14 +7,14 @@
  */
 
 const TICKER_MAP: Record<string, string> = {
-  Energy:   'AMEX:USO',    // United States Oil Fund
-  Metals:   'AMEX:GLD',    // SPDR Gold Shares
-  Forex:    'FX:EURUSD',     // EUR/USD (Forex is generally free)
-  Equities: 'AMEX:SPY',    // SPDR S&P 500 ETF Trust
+  Energy:   'CL=F',        // Crude Oil Futures
+  Metals:   'GC=F',        // Gold Futures
+  Forex:    'EURUSD=X',    // EUR/USD
+  Equities: '^GSPC',       // S&P 500 Index
 };
 
 /** Default symbol when asset class is unknown or 'None'. */
-const DEFAULT_SYMBOL = 'AMEX:SPY';
+const DEFAULT_SYMBOL = '^GSPC';
 
 /**
  * Resolves a Gemini primary_asset_class string to a TradingView symbol.
