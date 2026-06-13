@@ -12,6 +12,6 @@ jobs:
     steps:
       - name: Trigger News Ingestion Cron
         run: |
-          curl -X GET "${{ secrets.APP_URL }}/api/cron/fetch-news" \
+          curl -X GET "${{ https://macropulse-terminal-solos.vercel.app/ }}/api/cron/fetch-news" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             --fail
