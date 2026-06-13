@@ -21,17 +21,26 @@ export default function Home() {
 
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  // ── Stable fetch function — won't cause useEffect re-fires ─────────────
   const fetchEvents = useCallback(async () => {
+    // Timeout to prevent permanent hang if browser drops the request silently
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      setLoading(false);
+    }, 10000);
+
     try {
       setFeedError(false);
       setDebugInfo({ status: 'fetching' });
+      
       const { data, error, status, statusText } = await supabase
         .from('events')
         .select('*')
         .order('published_at', { ascending: false })
-        .limit(50);
+        .limit(50)
+        .abortSignal(controller.signal);
 
+      clearTimeout(timeoutId);
       setDebugInfo({ status: 'done', error, dataCount: data?.length, httpStatus: status, httpStatusText: statusText });
 
       if (error) {
@@ -56,6 +65,7 @@ export default function Home() {
         setDebugInfo({ status: 'empty_data_returned', data });
       }
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.error('Failed to fetch events:', err);
       setDebugInfo({ status: 'caught_exception', message: err?.message, stack: err?.stack });
       setFeedError(true);
@@ -172,7 +182,7 @@ export default function Home() {
             </div>
 
             <div className="flex-1 overflow-y-auto">
-              {loading && events.length === 0 ? (
+              {loading ? (
                 <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase animate-pulse">
                   Fetching data stream...
                 </div>
@@ -185,6 +195,10 @@ export default function Home() {
                     onSelect={() => handleSelect(event)}
                   />
                 ))
+              ) : events.length === 0 ? (
+                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
+                  No events found in database
+                </div>
               ) : (
                 <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
                   No events matched query

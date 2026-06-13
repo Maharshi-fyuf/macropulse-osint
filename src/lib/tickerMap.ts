@@ -7,14 +7,14 @@
  */
 
 const TICKER_MAP: Record<string, string> = {
-  Energy:   'NYMEX:CL1!',    // Crude Oil Futures (WTI)
-  Metals:   'OANDA:XAUUSD',  // Spot Gold
-  Forex:    'FX:EURUSD',     // EUR/USD
-  Equities: 'CME_MINI:ES1!', // S&P 500 E-mini Futures
+  Energy:   'AMEX:USO',    // United States Oil Fund
+  Metals:   'AMEX:GLD',    // SPDR Gold Shares
+  Forex:    'FX:EURUSD',     // EUR/USD (Forex is generally free)
+  Equities: 'AMEX:SPY',    // SPDR S&P 500 ETF Trust
 };
 
 /** Default symbol when asset class is unknown or 'None'. */
-const DEFAULT_SYMBOL = 'CME_MINI:ES1!';
+const DEFAULT_SYMBOL = 'AMEX:SPY';
 
 /**
  * Resolves a Gemini primary_asset_class string to a TradingView symbol.
