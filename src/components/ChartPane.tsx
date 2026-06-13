@@ -13,6 +13,7 @@ import {
 } from 'lightweight-charts';
 import { MarketEvent } from './FeedItem';
 import { type PredictionData } from '@/lib/types';
+import { useSearchParams } from 'next/navigation';
 
 interface ChartPaneProps {
   event?: MarketEvent | null;
@@ -410,11 +411,19 @@ const ChartPane = memo(function ChartPane({ event, prediction }: ChartPaneProps)
   const [showSma50, setShowSma50] = useState(false);
   const [showVolume, setShowVolume] = useState(true);
 
-  // Reset custom symbol when a new event is selected
+  const searchParams = useSearchParams();
+  const urlSymbol = searchParams?.get('symbol');
+
+  // Reset custom symbol when a new event is selected, or set to url param
   useEffect(() => {
-    setCustomSymbol('');
-    setInputValue('');
-  }, [event]);
+    if (urlSymbol) {
+      setCustomSymbol(urlSymbol.toUpperCase());
+      setInputValue(urlSymbol.toUpperCase());
+    } else if (event) {
+      setCustomSymbol('');
+      setInputValue('');
+    }
+  }, [event, urlSymbol]);
 
   // If customSymbol is set, use it. Otherwise use event.ticker, or default to Nifty 50
   const symbol = customSymbol || event?.ticker || '^NSEI';

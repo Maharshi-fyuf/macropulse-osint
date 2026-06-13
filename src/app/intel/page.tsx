@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 import FeedItem, { MarketEvent, formatTimeAgo } from '@/components/FeedItem';
 import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
+import MarketMovers from '@/components/MarketMovers';
 
 type TimeFilter = 'Live' | '24h' | '7d';
 
@@ -180,9 +181,7 @@ export default function IntelPage() {
         <div className="hidden md:flex flex-col col-span-7 lg:col-span-8 bg-[#09090b] relative">
           <TerminalErrorBoundary>
             {!selectedFeedItem ? (
-              <div className="h-full w-full flex items-center justify-center text-zinc-600 text-xs font-mono uppercase">
-                Select an event to view analysis
-              </div>
+              <MarketMovers onSelectEvent={setSelectedFeedItem} />
             ) : (
               <div className="h-full w-full p-6 overflow-y-auto flex flex-col">
                 <div className="mb-4 pb-4 border-b border-zinc-800">
