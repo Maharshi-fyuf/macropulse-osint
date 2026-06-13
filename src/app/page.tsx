@@ -5,15 +5,18 @@ import { supabase } from '@/lib/supabase-client';
 import FeedItem, { MarketEvent, getTradingViewSymbol } from '@/components/FeedItem';
 import AnalysisPane from '@/components/AnalysisPane';
 import ChartPane from '@/components/ChartPane';
+import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
 
 export default function Home() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
   const [selectedFeedItem, setSelectedFeedItem] = useState<MarketEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [feedError, setFeedError] = useState(false);
 
   const fetchEvents = async () => {
     try {
+      setFeedError(false);
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -22,6 +25,7 @@ export default function Home() {
 
       if (error) {
         console.error('Error fetching events:', error);
+        setFeedError(true);
       } else if (data && data.length > 0) {
         // Map database events to include requested fields (content & ticker)
         const mappedEvents = data.map((event: any) => ({
@@ -36,6 +40,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error('Failed to fetch events:', err);
+      setFeedError(true);
     } finally {
       setLoading(false);
     }
@@ -108,44 +113,54 @@ export default function Home() {
       {/* Main Grid Area */}
       <main className="flex-1 grid grid-cols-12 overflow-hidden bg-[#09090b]">
         {/* Left Pane: News Feed */}
-        <div className="col-span-3 border-r border-zinc-800 flex flex-col overflow-hidden bg-[#09090b]">
-          <div className="h-8 border-b border-zinc-800 flex items-center px-3 bg-zinc-900/50 shrink-0">
-            <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
-              Event Stream
-            </span>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {loading && events.length === 0 ? (
-              <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
-                Loading Data...
-              </div>
-            ) : filteredEvents.length > 0 ? (
-              filteredEvents.map((event) => (
-                <FeedItem
-                  key={event.id}
-                  event={event}
-                  isActive={selectedFeedItem?.id === event.id}
-                  onSelect={() => setSelectedFeedItem(event)}
-                />
-              ))
-            ) : (
-              <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
-                No events matched query
-              </div>
-            )}
-          </div>
+        <div className="col-span-3 border-r border-zinc-800 flex flex-col overflow-hidden bg-[#09090b] relative">
+          <TerminalErrorBoundary isActive={feedError}>
+            <div className="h-8 border-b border-zinc-800 flex items-center px-3 bg-zinc-900/50 shrink-0">
+              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
+                Event Stream
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {loading && events.length === 0 ? (
+                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
+                  Loading Data...
+                </div>
+              ) : filteredEvents.length > 0 ? (
+                filteredEvents.map((event) => (
+                  <FeedItem
+                    key={event.id}
+                    event={event}
+                    isActive={selectedFeedItem?.id === event.id}
+                    onSelect={() => setSelectedFeedItem(event)}
+                  />
+                ))
+              ) : (
+                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
+                  No events matched query
+                </div>
+              )}
+            </div>
+          </TerminalErrorBoundary>
         </div>
 
         {/* Right Pane: Charts & Analysis */}
-        <div className="col-span-9 flex flex-col overflow-hidden bg-[#09090b]">
+        <div className={`col-span-9 flex flex-col overflow-hidden bg-[#09090b] transition-all duration-300 relative ${
+          selectedFeedItem 
+            ? 'ring-1 ring-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] z-10' 
+            : ''
+        }`}>
           {/* Top Right: TradingView Chart */}
           <div className="flex-[3] border-b border-zinc-800 overflow-hidden relative">
-            <ChartPane event={selectedFeedItem} />
+            <TerminalErrorBoundary>
+              <ChartPane event={selectedFeedItem} />
+            </TerminalErrorBoundary>
           </div>
 
           {/* Bottom Right: AI Analysis */}
           <div className="flex-[2] overflow-hidden relative bg-[#09090b]">
-            <AnalysisPane event={selectedFeedItem} />
+            <TerminalErrorBoundary>
+              <AnalysisPane event={selectedFeedItem} />
+            </TerminalErrorBoundary>
           </div>
         </div>
       </main>

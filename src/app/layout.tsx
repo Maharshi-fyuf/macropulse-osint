@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "MacroPulse OSINT Terminal",
   description: "Lightweight geopolitical and macroeconomic trading perspective dashboard",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.svg"
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
