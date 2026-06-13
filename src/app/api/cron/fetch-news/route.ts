@@ -185,7 +185,7 @@ export async function GET(request: Request) {
     newItems.sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime());
 
     // Limit to prevent hitting API rate limits or function timeouts (e.g., free tiers)
-    const MAX_ITEMS_PER_RUN = 10;
+    const MAX_ITEMS_PER_RUN = 3; // Reduced from 10 to prevent Vercel 10s timeouts
     const itemsToProcess = newItems.slice(0, MAX_ITEMS_PER_RUN);
 
     // 5. Initialize Gemini SDK
@@ -260,17 +260,10 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
           throw new Error('Gemini returned an empty text response.');
         }
 
-        // Clean markdown blocks if any exist
-        let cleanedJson = jsonText.trim();
-        if (cleanedJson.startsWith('```json')) {
-          cleanedJson = cleanedJson.substring(7);
-        } else if (cleanedJson.startsWith('```')) {
-          cleanedJson = cleanedJson.substring(3);
-        }
-        if (cleanedJson.endsWith('```')) {
-          cleanedJson = cleanedJson.substring(0, cleanedJson.length - 3);
-        }
-        cleanedJson = cleanedJson.trim();
+        // Clean markdown blocks using regex
+        let cleanedJson = jsonText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        // Just in case there are other backticks wrapping the object
+        cleanedJson = cleanedJson.replace(/```/g, '').trim();
 
         const analysis: GeminiAnalysis = JSON.parse(cleanedJson);
 
@@ -316,8 +309,9 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
       } catch (itemError: any) {
         console.error(`Failed to process article with Gemini/Supabase: ${item.link}`, itemError);
         processedEvents.push({
+          url: item.link,
           title: item.title,
-          status: 'processing_error',
+          status: 'failed',
           error: itemError?.message || String(itemError),
         });
       }
