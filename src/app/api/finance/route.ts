@@ -1,103 +1,139 @@
 import { NextResponse } from 'next/server';
 
+const YF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+  'Accept': 'application/json',
+};
+
+/**
+ * Fetches candlestick data from Yahoo Finance for a given symbol.
+ * Returns the parsed chart result, or null if the response is invalid/empty.
+ */
+async function fetchChartData(symbol: string): Promise<{ result: any; data: any } | null> {
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=6mo`;
+    const response = await fetch(url, { headers: YF_HEADERS });
+
+    if (!response.ok) return null;
+
+    const data = await response.json().catch(() => null);
+    if (!data) return null;
+
+    // Treat a Yahoo-level error in the payload as a failure
+    if (data?.chart?.error || !data?.chart?.result?.[0]) return null;
+
+    const result = data.chart.result[0];
+
+    // Validate that we have the minimum required OHLC fields
+    if (!result?.timestamp || !result?.indicators?.quote?.[0]) return null;
+
+    return { result, data };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Determines whether the ticker already has an exchange suffix or special
+ * character that signals it should NOT receive the .NS priority treatment.
+ *
+ * Examples that are already suffixed / not bare equities:
+ *   MRF.NS  MRF.BO  BTC-USD  GC=F  ^GSPC  SPY (but SPY is fine as a global
+ *   fallback — it will just fail .NS and succeed on the bare fetch).
+ */
+function hasSuffix(ticker: string): boolean {
+  return (
+    ticker.includes('.') ||  // e.g. MRF.NS, MRF.BO
+    ticker.includes('=') ||  // e.g. GC=F (commodity futures)
+    ticker.includes('^') ||  // e.g. ^GSPC, ^BSESN (indices)
+    ticker.includes('-')     // e.g. BTC-USD (crypto pairs)
+  );
+}
+
+/**
+ * Formats a validated Yahoo Finance chart result into the OHLC array
+ * expected by lightweight-charts: [{ time: 'YYYY-MM-DD', open, high, low, close }]
+ */
+function formatOHLC(result: any): Array<{ time: string; open: number; high: number; low: number; close: number }> {
+  const timestamps: number[] = result.timestamp;
+  const quote = result.indicators.quote[0];
+  const formatted = [];
+
+  for (let i = 0; i < timestamps.length; i++) {
+    const open = quote.open[i];
+    const high = quote.high[i];
+    const low = quote.low[i];
+    const close = quote.close[i];
+
+    // Skip null / undefined values (Yahoo returns nulls for non-trading days)
+    if (open == null || high == null || low == null || close == null) continue;
+
+    const date = new Date(timestamps[i] * 1000);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    formatted.push({ time: `${year}-${month}-${day}`, open, high, low, close });
+  }
+
+  return formatted;
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const ticker = url.searchParams.get('ticker');
+    const ticker = url.searchParams.get('ticker')?.trim().toUpperCase();
 
     if (!ticker) {
       return NextResponse.json({ error: 'Ticker parameter is required' }, { status: 400 });
     }
 
-    // Proxy to Yahoo Finance Chart API
-    // 1d interval, 6mo range to ensure enough data for the chart
-    let yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=6mo`;
+    let chartResult: { result: any; data: any } | null = null;
+    let resolvedSymbol = ticker;
 
-    let response = await fetch(yfUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
-    });
+    if (hasSuffix(ticker)) {
+      // ── Path A: User already specified a suffix/format — use it directly ──
+      chartResult = await fetchChartData(ticker);
+    } else {
+      // ── Path B: Bare ticker — apply NSE Regional Priority Override ──
+      //
+      // Step 1: Try with .NS (National Stock Exchange of India) first.
+      //         This catches MRF, ITC, RELIANCE, INFY, etc. without the user
+      //         having to know the suffix.
+      const nseSymbol = `${ticker}.NS`;
+      chartResult = await fetchChartData(nseSymbol);
 
-    let data = await response.json().catch(() => ({}));
-
-    // If Yahoo rejects the raw ticker (like 'MRF' without exchange suffix), do a pre-flight search
-    if (!response.ok || !data?.chart?.result?.[0] || data.chart.error) {
-      const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&quotesCount=1`;
-      const searchRes = await fetch(searchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const foundSymbol = searchData.quotes?.[0]?.symbol;
-        if (foundSymbol && foundSymbol !== ticker) {
-          yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(foundSymbol)}?interval=1d&range=6mo`;
-          response = await fetch(yfUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'application/json',
-            },
-          });
-          data = await response.json().catch(() => ({}));
-        }
+      if (chartResult) {
+        resolvedSymbol = nseSymbol;
+      } else {
+        // Step 2: .NS failed (likely a global/US ticker like AAPL, SPY).
+        //         Fall back to the bare string — Yahoo will resolve it via its
+        //         own global lookup (e.g., NASDAQ:AAPL, NYSE:SPY).
+        chartResult = await fetchChartData(ticker);
+        resolvedSymbol = ticker;
       }
     }
 
-    if (!response.ok) {
+    // ── Both attempts failed ──
+    if (!chartResult) {
       return NextResponse.json(
-        { error: `Yahoo Finance API responded with status: ${response.status}` },
-        { status: response.status }
+        { error: 'Symbol not found or unsupported data format.' },
+        { status: 500 }
       );
     }
 
-    const result = data?.chart?.result?.[0];
+    const formattedData = formatOHLC(chartResult.result);
 
-    if (!result || !result.timestamp || !result.indicators?.quote?.[0]) {
-      return NextResponse.json({ error: 'Invalid data format from Yahoo Finance' }, { status: 500 });
+    if (formattedData.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid candlestick data returned for this symbol.' },
+        { status: 500 }
+      );
     }
 
-    const timestamps: number[] = result.timestamp;
-    const quote = result.indicators.quote[0];
-
-    // Format data for lightweight-charts
-    // { time: 'YYYY-MM-DD', open, high, low, close }
-    const formattedData = [];
-
-    for (let i = 0; i < timestamps.length; i++) {
-      const open = quote.open[i];
-      const high = quote.high[i];
-      const low = quote.low[i];
-      const close = quote.close[i];
-
-      // Skip null values (sometimes Yahoo returns null for trading days with missing data)
-      if (open === null || high === null || low === null || close === null) {
-        continue;
-      }
-
-      // Format time as YYYY-MM-DD string for lightweight-charts daily data
-      const date = new Date(timestamps[i] * 1000);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const timeString = `${year}-${month}-${day}`;
-
-      formattedData.push({
-        time: timeString,
-        open,
-        high,
-        low,
-        close,
-      });
-    }
-
-    return NextResponse.json({ data: formattedData });
+    return NextResponse.json({ data: formattedData, resolvedSymbol });
   } catch (error: any) {
-    console.error('Error proxying Yahoo Finance data:', error);
+    console.error('Fatal error in /api/finance:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
