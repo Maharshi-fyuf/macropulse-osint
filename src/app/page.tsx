@@ -11,6 +11,8 @@ import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
 // Mobile tab identifiers
 type ActiveTab = 'feed' | 'headlines' | 'chart' | 'analysis';
 
+type TimeFilter = 'Live' | '24h' | '7d';
+
 export default function Home() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
   const [selectedFeedItem, setSelectedFeedItem] = useState<MarketEvent | null>(null);
@@ -18,6 +20,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [feedError, setFeedError] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('Live');
 
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
@@ -33,12 +36,22 @@ export default function Home() {
       setFeedError(false);
       setDebugInfo({ status: 'fetching' });
       
-      const { data, error, status, statusText } = await supabase
+      let query = supabase
         .from('events')
         .select('*')
-        .order('published_at', { ascending: false })
-        .limit(100)
-        .abortSignal(controller.signal);
+        .order('published_at', { ascending: false });
+
+      if (timeFilter === '24h') {
+        const date24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        query = query.gte('published_at', date24h.toISOString()).limit(500);
+      } else if (timeFilter === '7d') {
+        const date7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        query = query.gte('published_at', date7d.toISOString()).limit(1000);
+      } else {
+        query = query.limit(100);
+      }
+
+      const { data, error, status, statusText } = await query.abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
       setDebugInfo({ status: 'done', error, dataCount: data?.length, httpStatus: status, httpStatusText: statusText });
@@ -72,7 +85,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [timeFilter]);
 
   // ── Effect: initial fetch + polling interval with proper cleanup ────────
   useEffect(() => {
@@ -133,22 +146,41 @@ export default function Home() {
           </span>
         </div>
 
-        <div className="flex flex-1 max-w-xs sm:max-w-md mx-4 relative">
-          <input
-            type="text"
-            placeholder="Search assets, tickers…"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            className="w-full bg-[#18181b] border border-zinc-800 rounded px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
-          />
-          {searchQuery && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs font-bold"
-            >
-              ✕
-            </button>
-          )}
+        <div className="flex items-center gap-2">
+          {/* Time Filter Group */}
+          <div className="hidden sm:flex items-center bg-[#18181b] border border-zinc-800 rounded p-0.5">
+            {(['Live', '24h', '7d'] as TimeFilter[]).map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setTimeFilter(filter)}
+                className={`px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider transition-colors ${
+                  timeFilter === filter
+                    ? 'bg-zinc-700 text-white'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-1 max-w-[150px] sm:max-w-xs relative">
+            <input
+              type="text"
+              placeholder="Search assets, tickers…"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              className="w-full bg-[#18181b] border border-zinc-800 rounded px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50"
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-1.5 bg-green-950/20 px-2.5 py-1 rounded border border-green-900/30">

@@ -206,23 +206,58 @@ const MemoizedChart = memo(function MemoizedChart({ symbol }: { symbol: string }
  * The outer wrapper only re-renders when the selected event changes.
  */
 const ChartPane = memo(function ChartPane({ event }: ChartPaneProps) {
-  // If no event is selected, default to S&P 500
-  const symbol = event?.ticker ?? '^GSPC';
+  const [customSymbol, setCustomSymbol] = useState('');
+  const [inputValue, setInputValue] = useState('');
+
+  // Reset custom symbol when a new event is selected
+  useEffect(() => {
+    setCustomSymbol('');
+    setInputValue('');
+  }, [event]);
+
+  // If customSymbol is set, use it. Otherwise use event.ticker, or default to S&P 500
+  const symbol = customSymbol || event?.ticker || '^GSPC';
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputValue.trim()) {
+      setCustomSymbol(inputValue.trim().toUpperCase());
+    }
+  };
 
   return (
     <div className="h-full w-full bg-[#09090b] relative overflow-hidden">
       {/* Header bar for chart */}
-      <div className="absolute top-0 left-0 right-0 h-8 border-b border-zinc-800 bg-zinc-900/50 z-20 flex items-center px-3 pointer-events-none">
-        <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
-          Native Chart 
-        </span>
-        <span className="ml-2 text-[10px] font-mono text-cyan-500 uppercase tracking-widest">
-          {symbol}
-        </span>
+      <div className="absolute top-0 left-0 right-0 h-10 border-b border-zinc-800 bg-zinc-900/50 z-20 flex items-center justify-between px-3">
+        <div className="flex items-center">
+          <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest pointer-events-none">
+            Native Chart 
+          </span>
+          <span className="ml-2 text-[10px] font-mono text-cyan-500 uppercase tracking-widest pointer-events-none">
+            {symbol}
+          </span>
+        </div>
+        
+        {/* Symbol Search Form */}
+        <form onSubmit={handleSearch} className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="Symbol (e.g. AAPL)"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            className="w-32 bg-[#18181b] border border-zinc-800 rounded px-2 py-1 text-[10px] font-mono text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50 transition-colors"
+          />
+          <button
+            type="submit"
+            className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-[10px] font-mono font-bold text-zinc-300 uppercase transition-colors"
+          >
+            Load
+          </button>
+        </form>
       </div>
       
       {/* Main chart area (offset for header) */}
-      <div className="absolute top-8 left-0 right-0 bottom-0">
+      <div className="absolute top-10 left-0 right-0 bottom-0">
         <MemoizedChart symbol={symbol} />
       </div>
     </div>

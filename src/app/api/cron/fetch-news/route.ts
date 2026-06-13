@@ -20,6 +20,8 @@ const DEFAULT_FEEDS = [
   'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
   'https://feeds.bloomberg.com/markets/news.rss',
   'https://www.theguardian.com/business/economics/rss',
+  'https://economictimes.indiatimes.com/rssfeedsdefault.cms',
+  'https://www.reutersagency.com/feed/',
 ];
 
 function parseSafeDate(dateStr: string | undefined | null): string {
