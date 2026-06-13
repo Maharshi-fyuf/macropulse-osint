@@ -86,7 +86,12 @@ export async function GET(request: Request) {
           return;
         }
 
-        const xml = await response.text();
+        let xml = await response.text();
+        
+        // Sanitize XML to fix "Invalid character in entity name" errors
+        // This regex replaces ampersands that are NOT already part of a valid XML entity (like &amp; or &#123;)
+        xml = xml.replace(/&(?!(?:apos|quot|[gl]t|amp);|#)/g, '&amp;');
+        
         const parsedFeed = await parser.parseString(xml);
         const feedTitle = parsedFeed.title || 'Unknown Source';
         let itemCount = 0;
