@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { MarketEvent, formatTimeAgo } from './FeedItem';
 
-export default function AnalysisPane({ event }: { event: MarketEvent | null }) {
+interface AnalysisPaneProps {
+  event: MarketEvent | null;
+}
+
+/**
+ * AnalysisPane — wrapped in React.memo.
+ * Only re-renders when the selected event reference changes.
+ */
+const AnalysisPane = memo(function AnalysisPane({ event }: AnalysisPaneProps) {
   if (!event) {
     return (
       <div className="h-full w-full flex items-center justify-center text-zinc-600 text-xs font-mono uppercase bg-[#09090b]">
@@ -67,4 +75,6 @@ export default function AnalysisPane({ event }: { event: MarketEvent | null }) {
       </div>
     </div>
   );
-}
+});
+
+export default AnalysisPane;

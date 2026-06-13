@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 
 // Re-export so existing callers (`import { getTradingViewSymbol } from '@/components/FeedItem'`)
@@ -49,13 +49,22 @@ export function formatTimeAgo(dateString: string): string {
   }
 }
 
-export default function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
-  const getSeverityStyle = (score: number) => {
-    if (score >= 8) return 'text-red-500 bg-red-500/10 border-red-500/20';
-    if (score >= 5) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
-    return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-  };
+// ── Severity badge colour helper (hoisted outside component to avoid re-creation) ──
+function getSeverityStyle(score: number): string {
+  if (score >= 8) return 'text-red-500 bg-red-500/10 border-red-500/20';
+  if (score >= 5) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+  return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
+}
 
+/**
+ * FeedItem — wrapped in React.memo.
+ * Only re-renders when its own props change (event id, isActive, onSelect ref).
+ * Because `onSelect` is a new closure every render in the parent, the parent must
+ * wrap the callback in useCallback or accept the shallow re-render.
+ * The memo still eliminates renders caused by unrelated parent state like
+ * searchQuery, activeTab, feedError, and loading.
+ */
+const FeedItem = memo(function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
   return (
     <div
       onClick={onSelect}
@@ -80,4 +89,6 @@ export default function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
       </h3>
     </div>
   );
-}
+});
+
+export default FeedItem;

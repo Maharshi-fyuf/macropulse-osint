@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 import FeedItem, { MarketEvent } from '@/components/FeedItem';
@@ -17,10 +17,10 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [feedError, setFeedError] = useState(false);
-  // Mobile tab switcher — desktop ignores this via CSS
   const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
 
-  const fetchEvents = async () => {
+  // ── Stable fetch function — won't cause useEffect re-fires ─────────────
+  const fetchEvents = useCallback(async () => {
     try {
       setFeedError(false);
       const { data, error } = await supabase
@@ -36,7 +36,6 @@ export default function Home() {
         const mappedEvents = data.map((event: any) => ({
           ...event,
           content: event.rationale,
-          // Use the central tickerMap for correct symbol resolution
           ticker: getTradingViewSymbol(event.asset_class),
         })) as MarketEvent[];
 
@@ -49,35 +48,45 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // ── Effect: initial fetch + polling interval with proper cleanup ────────
   useEffect(() => {
     fetchEvents();
     const interval = setInterval(fetchEvents, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchEvents]);
 
-  // When user selects a feed item on mobile, auto-navigate to chart tab
-  const handleSelect = (event: MarketEvent) => {
+  // ── Stable handlers — prevents FeedItem memo from being busted ─────────
+  const handleSelect = useCallback((event: MarketEvent) => {
     setSelectedFeedItem(event);
     setActiveTab('chart');
-  };
+  }, []);
 
-  const filteredEvents = events.filter((event) => {
-    if (searchQuery.trim() === '') return true;
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value),
+    []
+  );
+
+  const clearSearch = useCallback(() => setSearchQuery(''), []);
+
+  // ── Memoised filter — only recomputes when events or searchQuery change ─
+  const filteredEvents = useMemo(() => {
+    if (searchQuery.trim() === '') return events;
     const q = searchQuery.toLowerCase();
-    return (
-      event.title.toLowerCase().includes(q) ||
-      (event.rationale?.toLowerCase().includes(q) ?? false) ||
-      event.source.toLowerCase().includes(q) ||
-      event.bullish_assets?.some((a) => a.toLowerCase().includes(q)) ||
-      event.bearish_assets?.some((a) => a.toLowerCase().includes(q))
+    return events.filter(
+      (event) =>
+        event.title.toLowerCase().includes(q) ||
+        (event.rationale?.toLowerCase().includes(q) ?? false) ||
+        event.source.toLowerCase().includes(q) ||
+        event.bullish_assets?.some((a) => a.toLowerCase().includes(q)) ||
+        event.bearish_assets?.some((a) => a.toLowerCase().includes(q))
     );
-  });
+  }, [events, searchQuery]);
 
-  // ─── Tab visibility helpers (used only on mobile via md:hidden / md:flex) ───
-  const isFeedVisible   = activeTab === 'feed';
-  const isChartVisible  = activeTab === 'chart';
+  // ── Tab visibility (mobile only via CSS breakpoints) ───────────────────
+  const isFeedVisible = activeTab === 'feed';
+  const isChartVisible = activeTab === 'chart';
   const isAnalysisVisible = activeTab === 'analysis';
 
   return (
@@ -99,12 +108,12 @@ export default function Home() {
             type="text"
             placeholder="Search assets, tickers…"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearchChange}
             className="w-full bg-[#18181b] border border-zinc-800 rounded px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={clearSearch}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs font-bold"
             >
               ✕
@@ -121,26 +130,17 @@ export default function Home() {
       </header>
 
       {/* ── Main Content Area ───────────────────────────────────────────── */}
-      {/*
-        Desktop (md+): rigid 12-column grid, all panes visible side-by-side.
-        Mobile (<md):  single-column flex, only the active tab's pane shown.
-      */}
       <main className="flex-1 overflow-hidden bg-[#09090b]
                        flex flex-col
                        md:grid md:grid-cols-12">
 
         {/* ── LEFT PANE: News Feed ──────────────────────────────────────── */}
-        {/*
-          Desktop: always visible as col-span-3.
-          Mobile: shown only when activeTab === 'feed'.
-        */}
         <div className={`
           border-zinc-800 bg-[#09090b] relative flex flex-col overflow-hidden
           md:col-span-3 md:border-r md:flex
           ${isFeedVisible ? 'flex flex-1' : 'hidden'}
         `}>
           <TerminalErrorBoundary isActive={feedError}>
-            {/* Pane header */}
             <div className="h-8 border-b border-zinc-800 flex items-center px-3 bg-zinc-900/50 shrink-0">
               <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
                 Event Stream
@@ -152,7 +152,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Scrollable feed list — overflow-y-auto ensures graceful scrolling */}
             <div className="flex-1 overflow-y-auto">
               {loading && events.length === 0 ? (
                 <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase animate-pulse">
@@ -178,11 +177,12 @@ export default function Home() {
 
         {/* ── RIGHT PANE: Chart + Analysis ─────────────────────────────── */}
         {/*
-          Desktop: always visible as col-span-9 with neon glow when active.
-          Mobile: chart pane shown for 'chart' tab, analysis for 'analysis' tab.
+          transition-shadow (NOT transition-all) prevents layout thrashing
+          during the neon glow toggle — box-shadow and ring are composite-only
+          properties so the browser can animate them on the GPU layer.
         */}
         <div className={`
-          bg-[#09090b] transition-all duration-300 relative
+          bg-[#09090b] transition-shadow duration-300 relative
           md:col-span-9 md:flex md:flex-col md:overflow-hidden
           ${selectedFeedItem ? 'md:ring-1 md:ring-cyan-500/30 md:shadow-[0_0_15px_rgba(6,182,212,0.15)] md:z-10' : ''}
           ${(isChartVisible || isAnalysisVisible) ? 'flex flex-col flex-1 overflow-hidden' : 'hidden md:flex'}
@@ -213,7 +213,6 @@ export default function Home() {
       </main>
 
       {/* ── Mobile Tab Bar ─────────────────────────────────────────────── */}
-      {/* Hidden on desktop (md+). Terminal-style tab switcher for mobile. */}
       <nav className="md:hidden shrink-0 h-12 bg-[#0d0d10] border-t border-zinc-800 grid grid-cols-3">
         {(
           [
