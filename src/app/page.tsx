@@ -9,7 +9,7 @@ import ChartPane from '@/components/ChartPane';
 import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
 
 // Mobile tab identifiers
-type ActiveTab = 'feed' | 'chart' | 'analysis';
+type ActiveTab = 'feed' | 'headlines' | 'chart' | 'analysis';
 
 export default function Home() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
@@ -37,7 +37,7 @@ export default function Home() {
         .from('events')
         .select('*')
         .order('published_at', { ascending: false })
-        .limit(50)
+        .limit(100)
         .abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
@@ -95,10 +95,16 @@ export default function Home() {
   const clearSearch = useCallback(() => setSearchQuery(''), []);
 
   // ── Memoised filter — only recomputes when events or searchQuery change ─
+  const viewMode = activeTab === 'headlines' ? 'headlines' : 'feed';
+
   const filteredEvents = useMemo(() => {
-    if (searchQuery.trim() === '') return events;
+    // 1. Filter by view mode (feed = market moving only, headlines = all)
+    const viewEvents = viewMode === 'headlines' ? events : events.filter(e => e.is_market_moving);
+
+    // 2. Filter by search query
+    if (searchQuery.trim() === '') return viewEvents;
     const q = searchQuery.toLowerCase();
-    return events.filter(
+    return viewEvents.filter(
       (event) =>
         event.title.toLowerCase().includes(q) ||
         (event.rationale?.toLowerCase().includes(q) ?? false) ||
@@ -106,10 +112,10 @@ export default function Home() {
         event.bullish_assets?.some((a) => a.toLowerCase().includes(q)) ||
         event.bearish_assets?.some((a) => a.toLowerCase().includes(q))
     );
-  }, [events, searchQuery]);
+  }, [events, searchQuery, viewMode]);
 
   // ── Tab visibility (mobile only via CSS breakpoints) ───────────────────
-  const isFeedVisible = activeTab === 'feed';
+  const isFeedVisible = activeTab === 'feed' || activeTab === 'headlines';
   const isChartVisible = activeTab === 'chart';
   const isAnalysisVisible = activeTab === 'analysis';
 
@@ -170,15 +176,19 @@ export default function Home() {
                 DEBUG INFO: {JSON.stringify(debugInfo, null, 2)}
               </div>
             )}
-            <div className="h-8 border-b border-zinc-800 flex items-center px-3 bg-zinc-900/50 shrink-0">
-              <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest">
+            <div className="h-8 border-b border-zinc-800 flex items-center bg-zinc-900/50 shrink-0">
+              <button
+                onClick={() => setActiveTab('feed')}
+                className={`flex-1 h-full text-[10px] font-mono font-bold uppercase tracking-widest transition-colors ${viewMode === 'feed' ? 'text-zinc-200 bg-zinc-800/50' : 'text-zinc-500 hover:text-zinc-400'}`}
+              >
                 Event Stream
-              </span>
-              {events.length > 0 && (
-                <span className="ml-auto text-[9px] font-mono text-zinc-600">
-                  {filteredEvents.length} events
-                </span>
-              )}
+              </button>
+              <button
+                onClick={() => setActiveTab('headlines')}
+                className={`flex-1 h-full border-l border-zinc-800 text-[10px] font-mono font-bold uppercase tracking-widest transition-colors ${viewMode === 'headlines' ? 'text-zinc-200 bg-zinc-800/50' : 'text-zinc-500 hover:text-zinc-400'}`}
+              >
+                Headlines
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto">
@@ -246,10 +256,11 @@ export default function Home() {
       </main>
 
       {/* ── Mobile Tab Bar ─────────────────────────────────────────────── */}
-      <nav className="md:hidden shrink-0 h-12 bg-[#0d0d10] border-t border-zinc-800 grid grid-cols-3">
+      <nav className="md:hidden shrink-0 h-12 bg-[#0d0d10] border-t border-zinc-800 grid grid-cols-4">
         {(
           [
             { id: 'feed',     label: 'FEED',     icon: '≡' },
+            { id: 'headlines',label: 'HEADLINES',icon: '📰' },
             { id: 'chart',    label: 'CHART',    icon: '⬡' },
             { id: 'analysis', label: 'ANALYSIS', icon: '◈' },
           ] as { id: ActiveTab; label: string; icon: string }[]

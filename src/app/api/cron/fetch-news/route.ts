@@ -19,6 +19,7 @@ const DEFAULT_FEEDS = [
   'https://feeds.bbci.co.uk/news/business/rss.xml',
   'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
   'https://feeds.bloomberg.com/markets/news.rss',
+  'https://www.theguardian.com/business/economics/rss',
 ];
 
 function parseSafeDate(dateStr: string | undefined | null): string {
@@ -181,12 +182,40 @@ export async function GET(request: Request) {
       );
     }
 
-    // Sort from oldest to newest so they are saved to DB chronologically
-    newItems.sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime());
-
-    // Limit to prevent hitting API rate limits or function timeouts (e.g., free tiers)
+    // Group items by source for round-robin balancing
     const MAX_ITEMS_PER_RUN = 15; // Increased from 3 — Vercel Pro/Hobby timeout is 60s; Gemini calls are ~2s each
-    const itemsToProcess = newItems.slice(0, MAX_ITEMS_PER_RUN);
+    const itemsToProcess: typeof newItems = [];
+    
+    const itemsBySource: Record<string, typeof newItems> = {};
+    for (const item of newItems) {
+      if (!itemsBySource[item.source]) {
+        itemsBySource[item.source] = [];
+      }
+      itemsBySource[item.source].push(item);
+    }
+
+    // Sort each source's items chronologically (oldest to newest)
+    for (const source in itemsBySource) {
+      itemsBySource[source].sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime());
+    }
+
+    // Round-robin select from each source
+    let hasMoreItems = true;
+    while (itemsToProcess.length < MAX_ITEMS_PER_RUN && hasMoreItems) {
+      hasMoreItems = false;
+      for (const source in itemsBySource) {
+        if (itemsToProcess.length >= MAX_ITEMS_PER_RUN) break;
+        const sourceItems = itemsBySource[source];
+        if (sourceItems.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          itemsToProcess.push(sourceItems.shift()!);
+          hasMoreItems = true;
+        }
+      }
+    }
+
+    // Sort final batch chronologically so they are saved to DB in order
+    itemsToProcess.sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime());
 
     // 5. Initialize Gemini SDK
     const apiKey = process.env.GEMINI_API_KEY;
