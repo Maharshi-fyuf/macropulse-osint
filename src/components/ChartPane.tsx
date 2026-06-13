@@ -33,6 +33,9 @@ function ErrorDisplay({ message }: { message: string }) {
         <span className="text-xs text-zinc-500 mt-2">
           {message}
         </span>
+        <span className="text-[9px] text-zinc-600 mt-2 font-mono">
+          If this is a regional stock, try appending the exchange suffix (e.g. .NS or .L)
+        </span>
       </div>
     </div>
   );

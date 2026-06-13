@@ -11,14 +11,42 @@ export async function GET(request: Request) {
 
     // Proxy to Yahoo Finance Chart API
     // 1d interval, 6mo range to ensure enough data for the chart
-    const yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=6mo`;
+    let yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=6mo`;
 
-    const response = await fetch(yfUrl, {
+    let response = await fetch(yfUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json',
       },
     });
+
+    let data = await response.json().catch(() => ({}));
+
+    // If Yahoo rejects the raw ticker (like 'MRF' without exchange suffix), do a pre-flight search
+    if (!response.ok || !data?.chart?.result?.[0] || data.chart.error) {
+      const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&quotesCount=1`;
+      const searchRes = await fetch(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (searchRes.ok) {
+        const searchData = await searchRes.json();
+        const foundSymbol = searchData.quotes?.[0]?.symbol;
+        if (foundSymbol && foundSymbol !== ticker) {
+          yfUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(foundSymbol)}?interval=1d&range=6mo`;
+          response = await fetch(yfUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'application/json',
+            },
+          });
+          data = await response.json().catch(() => ({}));
+        }
+      }
+    }
 
     if (!response.ok) {
       return NextResponse.json(
@@ -27,7 +55,6 @@ export async function GET(request: Request) {
       );
     }
 
-    const data = await response.json();
     const result = data?.chart?.result?.[0];
 
     if (!result || !result.timestamp || !result.indicators?.quote?.[0]) {

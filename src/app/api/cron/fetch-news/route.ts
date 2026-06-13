@@ -245,8 +245,8 @@ Output exactly a single JSON object matching this schema:
   "rationale": "1-2 sentence explanation of the geopolitical context",
   "severity_score": integer (1-10),
   "primary_asset_class": "Energy" | "Metals" | "Forex" | "Equities" | "None",
-  "bullish_assets": ["Asset/Ticker 1", "Asset 2"],
-  "bearish_assets": ["Asset/Ticker 1", "Asset 2"]
+  "bullish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"],
+  "bearish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"]
 }
 If "is_market_moving" is false, return "None" for asset class and empty arrays. Do not add markdown code blocks around the JSON string.`;
 

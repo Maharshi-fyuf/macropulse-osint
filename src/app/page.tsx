@@ -22,8 +22,6 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('feed');
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('Live');
 
-  const [debugInfo, setDebugInfo] = useState<any>(null);
-
   const fetchEvents = useCallback(async () => {
     // Timeout to prevent permanent hang if browser drops the request silently
     const controller = new AbortController();
@@ -34,7 +32,6 @@ export default function Home() {
 
     try {
       setFeedError(false);
-      setDebugInfo({ status: 'fetching' });
       
       let query = supabase
         .from('events')
@@ -51,10 +48,9 @@ export default function Home() {
         query = query.limit(100);
       }
 
-      const { data, error, status, statusText } = await query.abortSignal(controller.signal);
+      const { data, error } = await query.abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
-      setDebugInfo({ status: 'done', error, dataCount: data?.length, httpStatus: status, httpStatusText: statusText });
 
       if (error) {
         console.error('Error fetching events:', error);
@@ -74,13 +70,10 @@ export default function Home() {
 
         setEvents(mappedEvents);
         setSelectedFeedItem((prev) => prev || mappedEvents[0]);
-      } else {
-        setDebugInfo({ status: 'empty_data_returned', data });
       }
     } catch (err: any) {
       clearTimeout(timeoutId);
       console.error('Failed to fetch events:', err);
-      setDebugInfo({ status: 'caught_exception', message: err?.message, stack: err?.stack });
       setFeedError(true);
     } finally {
       setLoading(false);
@@ -203,11 +196,6 @@ export default function Home() {
           ${isFeedVisible ? 'flex flex-1' : 'hidden'}
         `}>
           <TerminalErrorBoundary isActive={feedError}>
-            {debugInfo && (
-              <div className="bg-red-900/50 p-2 m-2 text-[10px] text-red-200 border border-red-500 font-mono break-words overflow-y-auto max-h-40">
-                DEBUG INFO: {JSON.stringify(debugInfo, null, 2)}
-              </div>
-            )}
             <div className="h-8 border-b border-zinc-800 flex items-center bg-zinc-900/50 shrink-0">
               <button
                 onClick={() => setActiveTab('feed')}

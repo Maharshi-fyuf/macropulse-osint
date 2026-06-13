@@ -48,11 +48,16 @@ const AnalysisPane = memo(function AnalysisPane({ event }: AnalysisPaneProps) {
                   ▲ Bullish Impact
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {event.bullish_assets.map((asset, i) => (
-                    <span key={i} className="bg-green-900/40 text-green-300 px-2 py-1 rounded-md text-xs font-semibold">
-                      {asset}
-                    </span>
-                  ))}
+                  {event.bullish_assets.map((asset, i) => {
+                    const [ticker, ...reasoningParts] = asset.split(':');
+                    const reasoning = reasoningParts.join(':').trim();
+                    return (
+                      <span key={i} className="bg-green-900/40 text-green-300 px-2 py-1 rounded-md text-xs font-semibold flex flex-col gap-1">
+                        <span>{ticker.trim()}</span>
+                        {reasoning && <span className="text-[9px] font-normal opacity-80 leading-snug">{reasoning}</span>}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -62,11 +67,16 @@ const AnalysisPane = memo(function AnalysisPane({ event }: AnalysisPaneProps) {
                   ▼ Bearish Impact
                 </span>
                 <div className="flex flex-wrap gap-1.5">
-                  {event.bearish_assets.map((asset, i) => (
-                    <span key={i} className="bg-red-900/40 text-red-300 px-2 py-1 rounded-md text-xs font-semibold">
-                      {asset}
-                    </span>
-                  ))}
+                  {event.bearish_assets.map((asset, i) => {
+                    const [ticker, ...reasoningParts] = asset.split(':');
+                    const reasoning = reasoningParts.join(':').trim();
+                    return (
+                      <span key={i} className="bg-red-900/40 text-red-300 px-2 py-1 rounded-md text-xs font-semibold flex flex-col gap-1">
+                        <span>{ticker.trim()}</span>
+                        {reasoning && <span className="text-[9px] font-normal opacity-80 leading-snug">{reasoning}</span>}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
