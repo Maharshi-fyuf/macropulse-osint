@@ -14,8 +14,11 @@ interface GeminiAnalysis {
 }
 
 const DEFAULT_FEEDS = [
-  'https://search.cnbc.com/rs/search/combinedfeed.cxml',
-  'https://www.reutersagency.com/feed/?taxonomy=keywords&term=geopolitics'
+  'https://www.cnbc.com/id/100003114/device/rss/rss.html',
+  'https://feeds.marketwatch.com/marketwatch/topstories/',
+  'https://feeds.bbci.co.uk/news/business/rss.xml',
+  'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
+  'https://feeds.bloomberg.com/markets/news.rss',
 ];
 
 function parseSafeDate(dateStr: string | undefined | null): string {
