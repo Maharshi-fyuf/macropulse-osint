@@ -39,10 +39,12 @@ const DEFAULT_FEEDS = [
   'https://feeds.marketwatch.com/marketwatch/topstories/',
   'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
   'https://www.cnbc.com/id/100003114/device/rss/rss.html',
-  'https://economictimes.indiatimes.com/markets/rss.cms',
+  // Economic Times — default feed (markets/rss.cms has broken doctype declaration)
+  'https://economictimes.indiatimes.com/rssfeedsdefault.cms',
   'https://feeds.bloomberg.com/markets/news.rss',
-  // Reuters — using their primary news wire feed
-  'https://feeds.reuters.com/reuters/businessNews',
+  // Reuters — agency primary feed is 404; Feedburner mirror also dead.
+  // Using The Guardian world news as a replacement for global geopolitical coverage.
+  'https://www.theguardian.com/world/rss',
 ];
 
 // ── Recency gate ──────────────────────────────────────────────────────────────
