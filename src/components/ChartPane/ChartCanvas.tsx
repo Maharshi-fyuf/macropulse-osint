@@ -3,9 +3,6 @@ import {
   createChart,
   IChartApi,
   ISeriesApi,
-  CandlestickSeries,
-  HistogramSeries,
-  LineSeries,
 } from 'lightweight-charts';
 import { ChartCanvasProps } from './types';
 import { calculateSMA, generateVolumeData } from './Indicators';
@@ -76,7 +73,7 @@ export const ChartCanvas = memo(function ChartCanvas({
 
     chartRef.current = chart;
 
-    const series = chart.addSeries(CandlestickSeries, {
+    const series = chart.addCandlestickSeries({
       upColor: '#22c55e',
       downColor: '#ef4444',
       borderVisible: false,
@@ -85,7 +82,7 @@ export const ChartCanvas = memo(function ChartCanvas({
     });
     seriesRef.current = series;
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
+    const volumeSeries = chart.addHistogramSeries({
       color: '#3f3f46',
       priceFormat: { type: 'volume' },
       priceScaleId: '',
@@ -95,7 +92,7 @@ export const ChartCanvas = memo(function ChartCanvas({
     });
     volumeSeriesRef.current = volumeSeries;
 
-    const sma20Series = chart.addSeries(LineSeries, {
+    const sma20Series = chart.addLineSeries({
       color: '#c084fc',
       lineWidth: 2,
       crosshairMarkerVisible: false,
@@ -104,7 +101,7 @@ export const ChartCanvas = memo(function ChartCanvas({
     });
     sma20SeriesRef.current = sma20Series;
 
-    const sma50Series = chart.addSeries(LineSeries, {
+    const sma50Series = chart.addLineSeries({
       color: '#fb923c',
       lineWidth: 2,
       crosshairMarkerVisible: false,
