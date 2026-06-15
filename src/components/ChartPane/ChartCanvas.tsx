@@ -3,6 +3,10 @@ import {
   createChart,
   IChartApi,
   ISeriesApi,
+  CandlestickSeries,
+  HistogramSeries,
+  LineSeries,
+  createSeriesMarkers,
 } from 'lightweight-charts';
 import { ChartCanvasProps } from './types';
 import { calculateSMA, generateVolumeData } from './Indicators';
@@ -38,6 +42,7 @@ export const ChartCanvas = memo(function ChartCanvas({
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const sma20SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const sma50SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const markersPluginRef = useRef<any>(null);
 
   const isIndian = symbol.endsWith('.NS') || symbol.endsWith('.BO') || symbol === '^NSEI' || symbol === '^BSESN';
   const currencyPrefix = isIndian ? '₹' : '$';
@@ -73,7 +78,7 @@ export const ChartCanvas = memo(function ChartCanvas({
 
     chartRef.current = chart;
 
-    const series = chart.addCandlestickSeries({
+    const series = chart.addSeries(CandlestickSeries, {
       upColor: '#22c55e',
       downColor: '#ef4444',
       borderVisible: false,
@@ -81,8 +86,9 @@ export const ChartCanvas = memo(function ChartCanvas({
       wickDownColor: '#ef4444',
     });
     seriesRef.current = series;
+    markersPluginRef.current = createSeriesMarkers(series);
 
-    const volumeSeries = chart.addHistogramSeries({
+    const volumeSeries = chart.addSeries(HistogramSeries, {
       color: '#3f3f46',
       priceFormat: { type: 'volume' },
       priceScaleId: '',
@@ -92,7 +98,7 @@ export const ChartCanvas = memo(function ChartCanvas({
     });
     volumeSeriesRef.current = volumeSeries;
 
-    const sma20Series = chart.addLineSeries({
+    const sma20Series = chart.addSeries(LineSeries, {
       color: '#c084fc',
       lineWidth: 2,
       crosshairMarkerVisible: false,
@@ -101,7 +107,7 @@ export const ChartCanvas = memo(function ChartCanvas({
     });
     sma20SeriesRef.current = sma20Series;
 
-    const sma50Series = chart.addLineSeries({
+    const sma50Series = chart.addSeries(LineSeries, {
       color: '#fb923c',
       lineWidth: 2,
       crosshairMarkerVisible: false,
@@ -213,7 +219,9 @@ export const ChartCanvas = memo(function ChartCanvas({
     const validMarkers = markers.filter(m => validDataTimes.has(m.time));
 
     // @ts-ignore
-    seriesRef.current.setMarkers(validMarkers);
+    if (markersPluginRef.current) {
+      markersPluginRef.current.setMarkers(validMarkers);
+    }
   }, [events, data]);
 
   return (
