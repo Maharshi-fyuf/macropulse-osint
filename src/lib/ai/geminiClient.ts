@@ -1,8 +1,15 @@
 import { GoogleGenAI } from '@google/genai';
 import { MarketEventSchema, GeminiAnalysis } from './schema';
 
+export function getGeminiClient(): GoogleGenAI {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('CRITICAL BACKEND ERROR: GEMINI_API_KEY is missing or undefined at runtime.');
+  }
+  return new GoogleGenAI({ apiKey });
+}
+
 export async function analyzeWithGemini(
-  ai: GoogleGenAI,
   item: { title: string; source: string; content: string }
 ): Promise<GeminiAnalysis | null> {
   const prompt = `You are a senior macro-economic trading analyst and geopolitical OSINT expert.
@@ -23,6 +30,7 @@ Output exactly a single JSON object matching this schema:
 If "is_market_moving" is false, return "None" for asset class and empty arrays. Do not add markdown code blocks around the JSON string.`;
 
   try {
+    const ai = getGeminiClient();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,

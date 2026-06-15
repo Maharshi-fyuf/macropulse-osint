@@ -124,12 +124,6 @@ export async function processNewsIngestion() {
     }
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not defined');
-  }
-  const ai = new GoogleGenAI({ apiKey });
-
   const upsertPayloads: Array<{
     title: string;
     source: string;
@@ -147,7 +141,7 @@ export async function processNewsIngestion() {
 
   for (const item of itemsToProcess) {
     try {
-      const analysis = await analyzeWithGemini(ai, item);
+      const analysis = await analyzeWithGemini(item);
       if (analysis) {
         upsertPayloads.push({
           title: item.title,
