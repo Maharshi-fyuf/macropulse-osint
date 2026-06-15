@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import ChartPane from '@/components/ChartPane';
 import TopRibbon from '@/components/TopRibbon';
-import CommandPalette from '@/components/CommandPalette';
 import { supabase } from '@/lib/supabase-client';
 import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import { EventRecord } from '@/types/event';
@@ -15,7 +13,7 @@ import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
 function SidebarNav() {
   const pathname = usePathname();
   const navItems = [
-    { label: 'Terminal', href: '/' },
+    { label: 'Squawk Box', href: '/' },
     { label: 'Intel Stream', href: '/intel' },
     { label: 'Quant Engine', href: '/quant' },
   ];
@@ -24,7 +22,7 @@ function SidebarNav() {
     <div className="w-64 border-r border-zinc-800 bg-[#09090b] flex flex-col shrink-0">
       <div className="p-6 border-b border-zinc-800">
         <h1 className="text-xl font-black text-white tracking-tight leading-none">MACROPULSE</h1>
-        <p className="text-[10px] text-cyan-500 font-mono mt-1 tracking-widest uppercase">OSINT Terminal 9.5</p>
+        <p className="text-[10px] text-cyan-500 font-mono mt-1 tracking-widest uppercase">Squawk Box</p>
       </div>
       <nav className="flex-1 p-4 flex flex-col gap-2">
         {navItems.map((item) => {
@@ -46,7 +44,7 @@ function SidebarNav() {
       </nav>
       <div className="p-4 border-t border-zinc-800">
         <p className="text-[9px] text-zinc-600 font-mono text-center uppercase tracking-widest">
-          Ctrl+K to search
+          High-Speed Ingestion Active
         </p>
       </div>
     </div>
@@ -54,7 +52,6 @@ function SidebarNav() {
 }
 
 export default function Home() {
-  const [activeSymbol, setActiveSymbol] = useState('^NSEI');
   const [events, setEvents] = useState<MarketEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
 
@@ -67,7 +64,7 @@ export default function Home() {
           .from('events')
           .select('*')
           .order('published_at', { ascending: false })
-          .limit(200); // Fetch top 200 events for the live feed and markers
+          .limit(200);
 
         if (error) {
           console.error('Error fetching events:', error);
@@ -103,68 +100,53 @@ export default function Home() {
     };
   }, []);
 
-  const handleSelectSymbol = (symbol: string) => {
-    setActiveSymbol(symbol);
-  };
-
-  const handleEventClick = (event: MarketEvent) => {
-    if (event.ticker && event.ticker !== 'GLOBAL') {
-      setActiveSymbol(event.ticker);
-    }
-  };
-
-  // For ChartPane markers, filter events matching the active ticker
-  const symbolEvents = events.filter((e) => {
-    // If it's a global event, or if it specifically impacts this asset
-    if (e.ticker === activeSymbol) return true;
-    const isBull = e.bullish_assets.some((a) => a.includes(activeSymbol.split('.')[0]));
-    const isBear = e.bearish_assets.some((a) => a.includes(activeSymbol.split('.')[0]));
-    return isBull || isBear;
-  });
-
   return (
     <div className="h-full w-full bg-[#09090b] flex flex-col overflow-hidden">
       <TopRibbon />
-      <CommandPalette onSelect={handleSelectSymbol} />
       
       <div className="flex-1 flex overflow-hidden">
         <SidebarNav />
 
-        <div className="flex-1 border-r border-zinc-800 relative">
-          <Suspense fallback={<div className="h-full w-full flex items-center justify-center text-zinc-600 font-mono uppercase text-xs">Loading chart framework...</div>}>
-            <ChartPane event={{ ticker: activeSymbol } as MarketEvent} events={symbolEvents} />
-          </Suspense>
-        </div>
-
-        <div className="w-80 bg-[#09090b] flex flex-col shrink-0">
-          <div className="h-10 border-b border-zinc-800 bg-zinc-900/50 flex items-center px-4 shrink-0">
-            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse mr-2" />
-            <h2 className="text-[10px] font-mono font-bold text-zinc-300 uppercase tracking-widest">
-              Live Intel Feed
-            </h2>
+        <div className="flex-1 bg-[#09090b] flex flex-col relative overflow-hidden">
+          <div className="h-12 border-b border-zinc-800 bg-zinc-900/30 flex items-center px-6 shrink-0 justify-between">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+              </span>
+              <h2 className="text-xs font-mono font-bold text-zinc-300 uppercase tracking-widest">
+                Global Live Intel Feed
+              </h2>
+            </div>
+            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
+              Squawk Box Stream · Maximum Density
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            <TerminalErrorBoundary>
-              {loadingEvents ? (
-                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase animate-pulse">
-                  Syncing database...
-                </div>
-              ) : events.length > 0 ? (
-                events.map((event) => (
-                  <div key={event.id} onClick={() => handleEventClick(event)} className="cursor-pointer">
-                    <FeedItem
-                      event={event}
-                      isActive={false}
-                      onSelect={() => handleEventClick(event)}
-                    />
+          
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+            <div className="max-w-5xl mx-auto space-y-4">
+              <TerminalErrorBoundary>
+                {loadingEvents ? (
+                  <div className="p-8 text-center text-zinc-600 text-sm font-mono uppercase animate-pulse border border-zinc-800/50 rounded-lg">
+                    Syncing intelligence database...
                   </div>
-                ))
-              ) : (
-                <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase">
-                  No events found
-                </div>
-              )}
-            </TerminalErrorBoundary>
+                ) : events.length > 0 ? (
+                  events.map((event) => (
+                    <div key={event.id} className="w-full">
+                      <FeedItem
+                        event={event}
+                        isActive={false}
+                        onSelect={() => {}}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-zinc-600 text-sm font-mono uppercase border border-zinc-800/50 rounded-lg">
+                    No intelligence events found
+                  </div>
+                )}
+              </TerminalErrorBoundary>
+            </div>
           </div>
         </div>
       </div>
