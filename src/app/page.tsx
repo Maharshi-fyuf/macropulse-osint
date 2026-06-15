@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import TopRibbon from '@/components/TopRibbon';
+import MarketNarrative from '@/components/MarketNarrative';
 import { supabase } from '@/lib/supabase-client';
 import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import { EventRecord } from '@/types/event';
@@ -80,47 +81,45 @@ export default function Home() {
   return (
     <div className="h-full w-full bg-slate-950 flex flex-col overflow-hidden font-mono text-xs leading-tight">
       <TopRibbon />
+      <MarketNarrative />
       
-      <div className="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
-        <div className="h-10 border-b border-slate-800 bg-slate-900 flex items-center px-4 shrink-0 justify-between">
+      <div className="flex-1 overflow-y-auto bg-slate-950 flex flex-col relative">
+        <div className="h-10 border-b border-slate-800 bg-slate-900 flex items-center px-4 shrink-0 justify-between sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
             </span>
-            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-widest">
-              Global Live Intel Feed
+            <h2 className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+              Live Intel Feed
             </h2>
           </div>
-          <div className="text-[10px] text-slate-500 uppercase tracking-widest">
+          <div className="text-[9px] text-slate-500 uppercase tracking-widest">
             Squawk Box Stream
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="w-full space-y-2">
-            <TerminalErrorBoundary>
-              {loadingEvents ? (
-                <div className="p-4 text-center text-slate-600 font-mono uppercase animate-pulse border border-slate-800 rounded-sm">
-                  Syncing intelligence database...
-                </div>
-              ) : events.length > 0 ? (
-                events.map((event) => (
-                  <div key={event.id} className="w-full">
-                    <FeedItem
-                      event={event}
-                      isActive={false}
-                      onSelect={() => {}}
-                    />
-                  </div>
-                ))
-              ) : (
-                <div className="p-4 text-center text-slate-600 font-mono uppercase border border-slate-800 rounded-sm">
-                  No intelligence events found
-                </div>
-              )}
-            </TerminalErrorBoundary>
-          </div>
+        <div className="w-full flex-1">
+          <TerminalErrorBoundary>
+            {loadingEvents ? (
+              <div className="p-8 text-center text-slate-600 font-mono uppercase animate-pulse">
+                Syncing intelligence database...
+              </div>
+            ) : events.length > 0 ? (
+              events.map((event) => (
+                <FeedItem
+                  key={event.id}
+                  event={event}
+                  isActive={false}
+                  onSelect={() => {}}
+                />
+              ))
+            ) : (
+              <div className="p-8 text-center text-slate-600 font-mono uppercase">
+                No intelligence events found
+              </div>
+            )}
+          </TerminalErrorBoundary>
         </div>
       </div>
     </div>
