@@ -34,10 +34,10 @@ export default function MarketMovers({ onSelectEvent }: MarketMoversProps) {
           setBearish(data.bearish || []);
           setLoading(false);
         }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         if (isMounted) {
-          setError(err.message);
+          setError(err instanceof Error ? err.message : String(err));
           setLoading(false);
         }
       }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 import FeedItem, { MarketEvent, formatTimeAgo } from '@/components/FeedItem';
+import { EventRecord } from '@/types/event';
 import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
 import MarketMovers from '@/components/MarketMovers';
 
@@ -50,7 +51,7 @@ export default function IntelPage() {
         console.error('Error fetching events:', error);
         setFeedError(true);
       } else if (data && data.length > 0) {
-        const mappedEvents = data.map((event: any) => ({
+        const mappedEvents = data.map((event: EventRecord) => ({
           ...event,
           title: event.title || 'Untitled Event',
           source: event.source || 'Unknown Source',
@@ -65,7 +66,7 @@ export default function IntelPage() {
         setEvents(mappedEvents);
         setSelectedFeedItem((prev) => prev || mappedEvents[0]);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       clearTimeout(timeoutId);
       console.error('Failed to fetch events:', err);
       setFeedError(true);

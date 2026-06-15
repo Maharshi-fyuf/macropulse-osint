@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 import { MarketEvent } from '@/components/FeedItem';
+import { EventRecord } from '@/types/event';
 
 export async function GET() {
   try {
@@ -24,7 +25,7 @@ export async function GET() {
     }
 
     // Map to MarketEvent structure and calculate net sentiment score
-    const eventsWithScore = data.map((event: any) => {
+    const eventsWithScore = data.map((event: EventRecord) => {
       const bullishCount = Array.isArray(event.bullish_assets) ? event.bullish_assets.length : 0;
       const bearishCount = Array.isArray(event.bearish_assets) ? event.bearish_assets.length : 0;
       
@@ -61,7 +62,7 @@ export async function GET() {
     const bearish = sorted.filter((e) => e.netSentimentScore < 0).slice(-5).reverse();
 
     return NextResponse.json({ bullish, bearish });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Fatal error in /api/market-movers:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }

@@ -13,6 +13,7 @@ import {
 } from 'lightweight-charts';
 import { MarketEvent } from './FeedItem';
 import { type PredictionData } from '@/lib/types';
+import { OHLCPoint } from '@/types/yahoo';
 import { useSearchParams } from 'next/navigation';
 
 interface ChartPaneProps {
@@ -53,7 +54,7 @@ function ErrorDisplay({ message }: { message: string }) {
 
 // ── Math Helpers ──────────────────────────────────────────────────────────────
 
-function calculateSMA(data: any[], period: number) {
+function calculateSMA(data: { time: string; close: number }[], period: number) {
   const result = [];
   for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
@@ -97,7 +98,7 @@ const MemoizedChart = memo(function MemoizedChart({
   const sma50SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
 
   // Keep a ref to the raw fetched data so we can toggle series without refetching
-  const rawDataRef = useRef<any[]>([]);
+  const rawDataRef = useRef<OHLCPoint[]>([]);
 
   // Refs to the two GBM price lines so we can cleanly remove them on update
   const upperLineRef = useRef<IPriceLine | null>(null);
@@ -273,11 +274,11 @@ const MemoizedChart = memo(function MemoizedChart({
             setLoading(false);
           }
         }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Error fetching chart data:', err);
         if (isMounted) {
-          setError(err.message || 'Failed to fetch data');
+          setError(err instanceof Error ? err.message : 'Failed to fetch data');
           setLoading(false);
         }
       }
@@ -336,7 +337,7 @@ const MemoizedChart = memo(function MemoizedChart({
 
     if (showVolume && volumeSeriesRef.current) {
       // Color volume bars based on close vs open
-      const volumeData = rawDataRef.current.map((d: any) => ({
+      const volumeData = rawDataRef.current.map((d: OHLCPoint) => ({
         time: d.time,
         value: d.value, // value is volume
         color: d.close >= d.open ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)', // green-500/30 or red-500/30

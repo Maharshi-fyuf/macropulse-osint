@@ -26,14 +26,14 @@ export default function QuantPage() {
       if (!res.ok) {
         throw new Error(`HTTP Error ${res.status}`);
       }
-      const data: PredictionData = await res.json();
-      if ((data as any).error) {
-        throw new Error((data as any).error);
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
       }
-      setPrediction(data);
-    } catch (err: any) {
+      setPrediction(data as PredictionData);
+    } catch (err: unknown) {
       console.error('Prediction fetch error:', err);
-      setError(err.message || 'Failed to fetch prediction');
+      setError(err instanceof Error ? err.message : 'Failed to fetch prediction');
     } finally {
       setLoading(false);
     }

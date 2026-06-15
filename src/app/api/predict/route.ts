@@ -175,7 +175,7 @@ export async function GET(request: Request) {
       resolvedSymbol,
       horizon: days,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Fatal error in /api/predict:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
