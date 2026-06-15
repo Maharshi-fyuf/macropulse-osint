@@ -148,10 +148,10 @@ export default function IntelPage() {
       </header>
 
       <main className="flex-1 overflow-hidden grid grid-cols-12">
-        {/* Left Pane: Event Stream */}
-        <div className="col-span-12 md:col-span-5 lg:col-span-4 border-r border-zinc-800 flex flex-col relative">
+        {/* Left Pane: Event Stream (Full Width) */}
+        <div className="col-span-12 border-r border-zinc-800 flex flex-col relative">
           <TerminalErrorBoundary isActive={feedError}>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto max-w-4xl mx-auto w-full">
               {loading ? (
                 <div className="p-4 text-center text-zinc-600 text-xs font-mono uppercase animate-pulse">
                   Fetching data stream...
@@ -161,8 +161,8 @@ export default function IntelPage() {
                   <FeedItem
                     key={event.id}
                     event={event}
-                    isActive={selectedFeedItem?.id === event.id}
-                    onSelect={() => setSelectedFeedItem(event)}
+                    isActive={false}
+                    onSelect={() => {}}
                   />
                 ))
               ) : events.length === 0 ? (
@@ -175,80 +175,6 @@ export default function IntelPage() {
                 </div>
               )}
             </div>
-          </TerminalErrorBoundary>
-        </div>
-
-        {/* Right Pane: AI Rationale & Impact */}
-        <div className="hidden md:flex flex-col col-span-7 lg:col-span-8 bg-[#09090b] relative">
-          <TerminalErrorBoundary>
-            {!selectedFeedItem ? (
-              <MarketMovers onSelectEvent={setSelectedFeedItem} />
-            ) : (
-              <div className="h-full w-full p-6 overflow-y-auto flex flex-col">
-                <div className="mb-4 pb-4 border-b border-zinc-800">
-                  <h2 className="text-xl font-bold text-white mb-2 leading-snug">{selectedFeedItem.title}</h2>
-                  <div className="flex gap-4 text-xs font-mono text-zinc-500">
-                    <span>SOURCE: {selectedFeedItem.source}</span>
-                    <span>TIME: {formatTimeAgo(selectedFeedItem.published_at)}</span>
-                    <a href={selectedFeedItem.url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
-                      [READ FULL]
-                    </a>
-                  </div>
-                </div>
-
-                <div className="flex-1 flex flex-col gap-6">
-                  <div>
-                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">AI Rationale</h3>
-                    <p className="text-sm text-zinc-300 leading-relaxed">
-                      {selectedFeedItem.rationale || 'No rationale provided.'}
-                    </p>
-                  </div>
-
-                  {((selectedFeedItem.bullish_assets?.length ?? 0) > 0 || (selectedFeedItem.bearish_assets?.length ?? 0) > 0) && (
-                    <div className="grid grid-cols-2 gap-4">
-                      {(selectedFeedItem.bullish_assets?.length ?? 0) > 0 && (
-                        <div className="bg-green-950/20 border border-green-900/30 rounded p-4">
-                          <span className="block text-[10px] font-bold text-green-500 mb-2 tracking-wider uppercase">
-                            ▲ Bullish Impact
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedFeedItem.bullish_assets?.map((asset, i) => {
-                              const [ticker, ...reasoningParts] = asset.split(':');
-                              const reasoning = reasoningParts.join(':').trim();
-                              return (
-                                <span key={i} className="bg-green-900/40 text-green-300 px-2 py-1 rounded-md text-xs font-semibold flex flex-col gap-1">
-                                  <span>{ticker.trim()}</span>
-                                  {reasoning && <span className="text-[9px] font-normal opacity-80 leading-snug">{reasoning}</span>}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {(selectedFeedItem.bearish_assets?.length ?? 0) > 0 && (
-                        <div className="bg-red-950/20 border border-red-900/30 rounded p-4">
-                          <span className="block text-[10px] font-bold text-red-500 mb-2 tracking-wider uppercase">
-                            ▼ Bearish Impact
-                          </span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedFeedItem.bearish_assets?.map((asset, i) => {
-                              const [ticker, ...reasoningParts] = asset.split(':');
-                              const reasoning = reasoningParts.join(':').trim();
-                              return (
-                                <span key={i} className="bg-red-900/40 text-red-300 px-2 py-1 rounded-md text-xs font-semibold flex flex-col gap-1">
-                                  <span>{ticker.trim()}</span>
-                                  {reasoning && <span className="text-[9px] font-normal opacity-80 leading-snug">{reasoning}</span>}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </TerminalErrorBoundary>
         </div>
       </main>

@@ -1,16 +1,13 @@
-'use client';
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function TopRibbon() {
-  const [riskScore, setRiskScore] = useState(82.4); // Mock dynamic risk score
-
-  useEffect(() => {
-    // Simulate dynamic risk score fluctuation
-    const interval = setInterval(() => {
-      setRiskScore(prev => Math.max(0, Math.min(100, prev + (Math.random() * 4 - 2))));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const { data: riskData } = useSWR('/api/risk-index', fetcher, { refreshInterval: 60000 });
+  const { data: healthData } = useSWR('/api/health', fetcher, { refreshInterval: 60000 });
+  const riskScore = riskData?.score || 0;
+  const explanation = riskData?.explanation || 'AWAITING DATA';
 
   const getRiskStyle = (score: number) => {
     if (score > 75) return 'text-red-500 bg-red-950/50 px-1 py-0.5 rounded-sm';
@@ -24,13 +21,7 @@ export default function TopRibbon() {
         <div className="animate-marquee whitespace-nowrap text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold w-full flex items-center">
           <span className="mx-6 text-emerald-400">SYSTEM: ONLINE</span>
           <span className="mx-6 text-slate-700">|</span>
-          <span className="mx-6">GLOBAL RISK INDEX: <span className={getRiskStyle(riskScore)}>{riskScore.toFixed(1)}</span></span>
-          <span className="mx-6 text-slate-700">|</span>
-          <span className="mx-6">CRUDE OIL ACCELERATION: <span className="text-emerald-400">+1.4%</span></span>
-          <span className="mx-6 text-slate-700">|</span>
-          <span className="mx-6">US CORE CPI: <span className="text-slate-300">3.1% YoY</span></span>
-          <span className="mx-6 text-slate-700">|</span>
-          <span className="mx-6">VIX: <span className="text-red-500">18.4 ▲</span></span>
+          <span className="mx-6">GLOBAL RISK INDEX: <span className={getRiskStyle(riskScore)}>{explanation}</span></span>
           <span className="mx-6 text-slate-700">|</span>
           <span className="mx-6 text-emerald-400">AI INGESTION: NOMINAL</span>
         </div>
@@ -46,22 +37,16 @@ export default function TopRibbon() {
       </div>
 
       <div className="flex items-center gap-2 pl-2 border-l border-slate-800 bg-slate-950 z-10 shrink-0 h-full">
-        <div className="flex flex-col items-center justify-center">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mb-0.5" />
-          <span className="text-[8px] font-bold text-slate-500 leading-none">RSS</span>
-        </div>
-        <div className="flex flex-col items-center justify-center">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mb-0.5" />
-          <span className="text-[8px] font-bold text-slate-500 leading-none">AI</span>
-        </div>
-        <div className="flex flex-col items-center justify-center">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mb-0.5" />
-          <span className="text-[8px] font-bold text-slate-500 leading-none">DB</span>
-        </div>
-        <div className="flex flex-col items-center justify-center">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse mb-0.5" />
-          <span className="text-[8px] font-bold text-slate-500 leading-none">MKT</span>
-        </div>
+        {['rss', 'ai', 'db', 'mkt'].map(sys => {
+          const status = healthData?.[sys] || 'yellow';
+          const color = status === 'green' ? 'bg-emerald-500 animate-pulse' : status === 'red' ? 'bg-red-500 animate-ping' : 'bg-yellow-500';
+          return (
+            <div key={sys} className="flex flex-col items-center justify-center">
+              <span className={`w-1.5 h-1.5 rounded-full mb-0.5 ${color}`} />
+              <span className="text-[8px] font-bold text-slate-500 leading-none uppercase">{sys}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

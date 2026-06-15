@@ -13,13 +13,8 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 });
 
 export default function QuantTape() {
-  // Use pre-defined major indices for the tape
-  const tickers = ['^NSEI', '^BSESN', 'GC=F'];
-  
-  // We'll mock the data for speed as firing 3x heavy serverless predicts on load is heavy
-  // In a real app we'd fetch actual real-time prices or use the SWR endpoint if it was fast enough.
-  // Using SWR to mock data or hit a lightweight endpoint.
-  const { data, error } = useSWR('/api/market-movers', fetcher, { refreshInterval: 60000 });
+  const { data: pricesData, error: pricesError } = useSWR('/api/prices', fetcher, { refreshInterval: 60000 });
+  const { data: moversData } = useSWR('/api/market-movers', fetcher, { refreshInterval: 60000 });
 
   return (
     <div className="w-full h-8 bg-slate-950 border-b border-slate-800 flex items-center shrink-0">
@@ -27,22 +22,20 @@ export default function QuantTape() {
         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Q-TAPE</span>
       </div>
       <div className="flex-1 overflow-x-auto no-scrollbar flex items-center whitespace-nowrap pl-2 space-x-6">
-        {tickers.map(t => {
-          // Mock data mapping
-          const drift = Math.random() > 0.5 ? 0.015 : -0.012;
-          const price = t === '^NSEI' ? 22400.50 : t === '^BSESN' ? 73500.20 : 2350.10;
-          const isUp = drift > 0;
+        {pricesData?.data?.map((t: any) => {
+          if (!t.price) return null;
+          const isUp = t.changePercent > 0;
           return (
-            <div key={t} className="flex items-center gap-2 text-[10px] font-mono tracking-widest">
-              <span className="font-bold text-slate-300">{t}</span>
-              <span className="text-slate-100">{price.toFixed(2)}</span>
+            <div key={t.symbol} className="flex items-center gap-2 text-[10px] font-mono tracking-widest">
+              <span className="font-bold text-slate-300">{t.symbol}</span>
+              <span className="text-slate-100">{t.price.toFixed(2)}</span>
               <span className={`font-bold ${isUp ? 'text-emerald-400' : 'text-red-500'}`}>
-                {isUp ? '▲' : '▼'} {Math.abs(drift * 100).toFixed(2)}%
+                {isUp ? '▲' : '▼'} {Math.abs(t.changePercent).toFixed(2)}%
               </span>
             </div>
           );
         })}
-        {data && data.bullish?.slice(0,2).map((item: any) => (
+        {moversData?.bullish?.slice(0,2).map((item: any) => (
             <div key={item.ticker} className="flex items-center gap-2 text-[10px] font-mono tracking-widest">
               <span className="font-bold text-slate-300">{item.ticker}</span>
               <span className="font-bold text-emerald-400">

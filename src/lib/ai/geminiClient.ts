@@ -98,3 +98,51 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
     return null;
   }
 }
+
+export async function generateNarrative(events: any[]) {
+  if (!events || events.length === 0) return null;
+  
+  const eventsContext = events.slice(0, 20).map(e => `- ${e.title}: ${e.rationale}`).join('\n');
+  const prompt = `You are an elite quantitative analyst. Analyze the following recent market events and synthesize a cohesive market narrative.
+Events:
+${eventsContext}
+
+Output exactly a single JSON object matching this schema:
+{
+  "dominant_theme": "1-3 word short string representing the dominant market theme",
+  "key_risks": ["Risk 1", "Risk 2"],
+  "bullish_assets": ["Asset 1", "Asset 2"],
+  "bearish_assets": ["Asset 1", "Asset 2"],
+  "summary": "1-3 sentence cohesive narrative explaining the market rotation and why."
+}
+Do not use markdown blocks.`;
+
+  try {
+    const ai = getGeminiClient();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            dominant_theme: { type: 'STRING' },
+            key_risks: { type: 'ARRAY', items: { type: 'STRING' } },
+            bullish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
+            bearish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
+            summary: { type: 'STRING' }
+          },
+          required: ['dominant_theme', 'key_risks', 'bullish_assets', 'bearish_assets', 'summary']
+        }
+      }
+    });
+
+    const jsonText = response.text;
+    if (!jsonText) return null;
+    return JSON.parse(jsonText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').replace(/```/g, '').trim());
+  } catch (error) {
+    console.error('[Gemini Narrative] Execution error:', error);
+    return null;
+  }
+}

@@ -2,7 +2,7 @@ import Parser from 'rss-parser';
 import { GoogleGenAI } from '@google/genai';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchSingleFeed, FeedResult, RawItem } from '../rss/feedFetcher';
-import { analyzeWithGemini } from '../ai/geminiClient';
+import { analyzeWithGemini, generateNarrative } from '../ai/geminiClient';
 
 const DEFAULT_FEEDS = [
   'https://feeds.bbci.co.uk/news/business/rss.xml',
@@ -190,6 +190,30 @@ export async function processNewsIngestion() {
       upsertError = dbErr.message;
     } else {
       insertedCount = upsertPayloads.length;
+      
+      // Narrative Engine Generation
+      try {
+        const { data: recentEvents } = await supabaseAdmin
+          .from('events')
+          .select('*')
+          .order('published_at', { ascending: false })
+          .limit(20);
+          
+        if (recentEvents && recentEvents.length > 0) {
+          const narrative = await generateNarrative(recentEvents);
+          if (narrative) {
+            await supabaseAdmin.from('narratives').insert({
+              dominant_theme: narrative.dominant_theme,
+              key_risks: narrative.key_risks,
+              bullish_assets: narrative.bullish_assets,
+              bearish_assets: narrative.bearish_assets,
+              summary: narrative.summary
+            });
+          }
+        }
+      } catch (narrativeError) {
+        console.error('Narrative generation failed during ingestion:', narrativeError);
+      }
     }
   }
 

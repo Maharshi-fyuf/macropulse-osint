@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Hardcoded to bypass Vercel env variable setup for the client
-const supabaseUrl = 'https://ffuqgimioiebntdzephr.supabase.co';
-const supabaseAnonKey = 'sb_publishable_qk6BoMm3wIlxW12dtqlJeA_27m6LEPk';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('FATAL: Supabase environment variables NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be defined.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

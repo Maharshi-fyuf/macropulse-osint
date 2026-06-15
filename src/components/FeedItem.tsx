@@ -62,17 +62,16 @@ function getDirectionalBg(event: MarketEvent): string {
   return 'bg-slate-950 hover:bg-slate-900/50';
 }
 
+import Link from 'next/link';
+
 const FeedItem = memo(function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
   const risk = getRiskClassification(event.severity_score);
   const directionalBg = getDirectionalBg(event);
-  
-  // Deterministic mock confidence based on ID or score
-  const confidence = 80 + (event.severity_score * 2);
 
   return (
-    <div
-      onClick={onSelect}
-      className={`cursor-pointer border-b border-slate-800 p-4 transition-colors ${
+    <Link
+      href={`/intel/${event.id}`}
+      className={`block border-b border-slate-800 p-4 transition-colors ${
         isActive ? 'bg-slate-800/80' : directionalBg
       }`}
     >
@@ -80,9 +79,6 @@ const FeedItem = memo(function FeedItem({ event, isActive, onSelect }: FeedItemP
         <div className="flex items-center gap-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border uppercase tracking-widest ${risk.bg} ${risk.color}`}>
             {risk.label}
-          </span>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest border border-slate-800 px-1.5 py-0.5 rounded-sm">
-            AI CF: {confidence}%
           </span>
         </div>
         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
@@ -121,7 +117,7 @@ const FeedItem = memo(function FeedItem({ event, isActive, onSelect }: FeedItemP
         <span className="mx-2">•</span>
         <span>SEVERITY: {event.severity_score}/10</span>
       </div>
-    </div>
+    </Link>
   );
 });
 
