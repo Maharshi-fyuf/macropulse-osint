@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import TopRibbon from '@/components/TopRibbon';
@@ -99,6 +99,26 @@ export default function Home() {
       clearInterval(interval);
     };
   }, []);
+
+  const lastSeenEventId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (events.length > 0) {
+      if (lastSeenEventId.current) {
+        const newEvents = [];
+        for (const e of events) {
+          if (e.id === lastSeenEventId.current) break;
+          newEvents.push(e);
+        }
+        
+        if (newEvents.some(e => e.severity_score >= 9)) {
+          const alertSound = new Audio('/sounds/alert.mp3');
+          alertSound.play().catch((e) => console.error("Audio play failed:", e));
+        }
+      }
+      lastSeenEventId.current = events[0].id;
+    }
+  }, [events]);
 
   return (
     <div className="h-full w-full bg-[#09090b] flex flex-col overflow-hidden">

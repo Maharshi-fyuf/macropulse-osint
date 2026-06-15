@@ -12,8 +12,8 @@ export function getGeminiClient(): GoogleGenAI {
 export async function analyzeWithGemini(
   item: { title: string; source: string; content: string }
 ): Promise<GeminiAnalysis | null> {
-  const prompt = `You are a senior macro-economic trading analyst and geopolitical OSINT expert.
-Analyze the following news item:
+  const prompt = `You are an elite quantitative analyst and geopolitical OSINT expert.
+Analyze the following news article:
 Title: ${item.title}
 Source: ${item.source}
 Content: ${item.content}
@@ -21,12 +21,19 @@ Content: ${item.content}
 Output exactly a single JSON object matching this schema:
 {
   "is_market_moving": boolean,
-  "rationale": "1-2 sentence explanation of the geopolitical context",
+  "rationale": "1-sentence explanation of the geopolitical context and rationale for the severity score",
   "severity_score": integer (1-10),
   "primary_asset_class": "Energy" | "Metals" | "Forex" | "Equities" | "None",
   "bullish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"],
   "bearish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"]
 }
+
+SEVERITY SCORING GUIDELINES:
+- Score 1-4: Fluff, daily noise, or insignificant local news.
+- Score 5-7: Standard corporate news, typical earnings, or moderate economic data.
+- Score 8: Significant, highly notable market events.
+- Score 9-10: RESERVED ONLY for massive, market-moving macroeconomic shocks (e.g., RBI/Fed rate changes, major geopolitical wars, massive black-swan events, global supply chain collapses).
+
 If "is_market_moving" is false, return "None" for asset class and empty arrays. Do not add markdown code blocks around the JSON string.`;
 
   try {

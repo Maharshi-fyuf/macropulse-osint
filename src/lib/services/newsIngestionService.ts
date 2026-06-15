@@ -11,6 +11,9 @@ const DEFAULT_FEEDS = [
   'https://rss.nytimes.com/services/xml/rss/nyt/Economy.xml',
   'https://www.moneycontrol.com/rss/economy.xml',
   'https://economictimes.indiatimes.com/rssfeedsdefault.cms',
+  'https://b2b.economictimes.indiatimes.com/rss/topstories',
+  'https://www.livemint.com/rss/news',
+  'https://search.cnbc.com/rs/search/combinedcms/view.xml?id=10001147',
   'https://feeds.bloomberg.com/markets/news.rss',
   'https://www.theguardian.com/world/rss',
 ];
