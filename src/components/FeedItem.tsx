@@ -1,8 +1,6 @@
 import React, { memo } from 'react';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 
-// Re-export so existing callers (`import { getTradingViewSymbol } from '@/components/FeedItem'`)
-// continue to work without modification.
 export { getTradingViewSymbol };
 
 export interface MarketEvent {
@@ -49,42 +47,34 @@ export function formatTimeAgo(dateString: string): string {
   }
 }
 
-// ── Severity badge colour helper (hoisted outside component to avoid re-creation) ──
 function getSeverityStyle(score: number): string {
-  if (score >= 8) return 'text-red-500 bg-red-500/10 border-red-500/20';
-  if (score >= 5) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
-  return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
+  if (score >= 9) return 'text-red-500 bg-red-500/10 border-red-500/20 animate-pulse';
+  if (score >= 8) return 'text-red-400 bg-red-400/10 border-red-400/20';
+  if (score >= 5) return 'text-slate-400 bg-slate-800/50 border-slate-700';
+  return 'text-slate-500 border-transparent';
 }
 
-/**
- * FeedItem — wrapped in React.memo.
- * Only re-renders when its own props change (event id, isActive, onSelect ref).
- * Because `onSelect` is a new closure every render in the parent, the parent must
- * wrap the callback in useCallback or accept the shallow re-render.
- * The memo still eliminates renders caused by unrelated parent state like
- * searchQuery, activeTab, feedError, and loading.
- */
 const FeedItem = memo(function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
   return (
     <div
       onClick={onSelect}
-      className={`cursor-pointer border-b border-zinc-800 p-3 transition-colors ${
-        isActive ? 'bg-zinc-800/50' : 'hover:bg-zinc-900'
+      className={`cursor-pointer border-b border-slate-800 p-3 transition-colors ${
+        isActive ? 'bg-slate-800/50' : 'hover:bg-slate-900/50 bg-slate-950'
       }`}
     >
-      <div className="flex justify-between items-start mb-1.5">
-        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+      <div className="flex justify-between items-start mb-1">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
           {event.source} • {formatTimeAgo(event.published_at)}
         </span>
         <span
-          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getSeverityStyle(
+          className={`text-[9px] font-bold px-1.5 py-0.5 rounded-sm border ${getSeverityStyle(
             event.severity_score
           )}`}
         >
           {event.severity_score}/10
         </span>
       </div>
-      <h3 className={`text-xs font-semibold leading-snug ${isActive ? 'text-white' : 'text-zinc-300'}`}>
+      <h3 className={`text-xs font-semibold leading-tight ${isActive ? 'text-white' : 'text-slate-300'}`}>
         {event.title}
       </h3>
     </div>

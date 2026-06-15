@@ -1,55 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import TopRibbon from '@/components/TopRibbon';
 import { supabase } from '@/lib/supabase-client';
 import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import { EventRecord } from '@/types/event';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
 import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
-
-function SidebarNav() {
-  const pathname = usePathname();
-  const navItems = [
-    { label: 'Squawk Box', href: '/' },
-    { label: 'Intel Stream', href: '/intel' },
-    { label: 'Quant Engine', href: '/quant' },
-  ];
-
-  return (
-    <div className="w-64 border-r border-zinc-800 bg-[#09090b] flex flex-col shrink-0">
-      <div className="p-6 border-b border-zinc-800">
-        <h1 className="text-xl font-black text-white tracking-tight leading-none">MACROPULSE</h1>
-        <p className="text-[10px] text-cyan-500 font-mono mt-1 tracking-widest uppercase">Squawk Box</p>
-      </div>
-      <nav className="flex-1 p-4 flex flex-col gap-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`px-4 py-3 rounded text-sm font-mono tracking-widest uppercase transition-all ${
-                isActive
-                  ? 'bg-zinc-800 text-white border-l-2 border-cyan-500'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900 border-l-2 border-transparent'
-              }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="p-4 border-t border-zinc-800">
-        <p className="text-[9px] text-zinc-600 font-mono text-center uppercase tracking-widest">
-          High-Speed Ingestion Active
-        </p>
-      </div>
-    </div>
-  );
-}
 
 export default function Home() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
@@ -121,52 +78,48 @@ export default function Home() {
   }, [events]);
 
   return (
-    <div className="h-full w-full bg-[#09090b] flex flex-col overflow-hidden">
+    <div className="h-full w-full bg-slate-950 flex flex-col overflow-hidden font-mono text-xs leading-tight">
       <TopRibbon />
       
-      <div className="flex-1 flex overflow-hidden">
-        <SidebarNav />
-
-        <div className="flex-1 bg-[#09090b] flex flex-col relative overflow-hidden">
-          <div className="h-12 border-b border-zinc-800 bg-zinc-900/30 flex items-center px-6 shrink-0 justify-between">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-              </span>
-              <h2 className="text-xs font-mono font-bold text-zinc-300 uppercase tracking-widest">
-                Global Live Intel Feed
-              </h2>
-            </div>
-            <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">
-              Squawk Box Stream · Maximum Density
-            </div>
+      <div className="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
+        <div className="h-10 border-b border-slate-800 bg-slate-900 flex items-center px-4 shrink-0 justify-between">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+            </span>
+            <h2 className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+              Global Live Intel Feed
+            </h2>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-            <div className="max-w-5xl mx-auto space-y-4">
-              <TerminalErrorBoundary>
-                {loadingEvents ? (
-                  <div className="p-8 text-center text-zinc-600 text-sm font-mono uppercase animate-pulse border border-zinc-800/50 rounded-lg">
-                    Syncing intelligence database...
+          <div className="text-[10px] text-slate-500 uppercase tracking-widest">
+            Squawk Box Stream
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="w-full space-y-2">
+            <TerminalErrorBoundary>
+              {loadingEvents ? (
+                <div className="p-4 text-center text-slate-600 font-mono uppercase animate-pulse border border-slate-800 rounded-sm">
+                  Syncing intelligence database...
+                </div>
+              ) : events.length > 0 ? (
+                events.map((event) => (
+                  <div key={event.id} className="w-full">
+                    <FeedItem
+                      event={event}
+                      isActive={false}
+                      onSelect={() => {}}
+                    />
                   </div>
-                ) : events.length > 0 ? (
-                  events.map((event) => (
-                    <div key={event.id} className="w-full">
-                      <FeedItem
-                        event={event}
-                        isActive={false}
-                        onSelect={() => {}}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-8 text-center text-zinc-600 text-sm font-mono uppercase border border-zinc-800/50 rounded-lg">
-                    No intelligence events found
-                  </div>
-                )}
-              </TerminalErrorBoundary>
-            </div>
+                ))
+              ) : (
+                <div className="p-4 text-center text-slate-600 font-mono uppercase border border-slate-800 rounded-sm">
+                  No intelligence events found
+                </div>
+              )}
+            </TerminalErrorBoundary>
           </div>
         </div>
       </div>

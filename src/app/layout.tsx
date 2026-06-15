@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MacroPulse OSINT Terminal",
-  description: "Lightweight geopolitical and macroeconomic trading perspective dashboard",
+  description: "Institutional geopolitical and macroeconomic trading terminal",
   manifest: "/manifest.json",
   icons: {
     icon: "/favicon.svg"
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0D0D0D",
+  themeColor: "#020617", // slate-950
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -45,7 +45,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
-      <body className="h-screen w-screen flex bg-[#09090b] text-white overflow-hidden">
+      <body className="h-screen w-screen flex bg-slate-950 text-slate-100 overflow-hidden font-mono text-xs leading-tight">
         <Sidebar />
         <main className="flex-1 overflow-hidden relative">
           {children}
@@ -54,4 +54,3 @@ export default function RootLayout({
     </html>
   );
 }
-

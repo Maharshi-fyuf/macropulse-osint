@@ -1,52 +1,44 @@
 'use client';
 
-import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export default function Sidebar() {
   const pathname = usePathname();
-
-  const links = [
-    { href: '/', label: 'CHART', icon: '⬡' },
-    { href: '/intel', label: 'INTEL', icon: '📰' },
-    { href: '/quant', label: 'QUANT', icon: '◈' },
+  
+  const navItems = [
+    { href: '/', label: 'SQUAWK BOX' },
+    { href: '/intel', label: 'INTEL STREAM' },
+    { href: '/quant', label: 'QUANT ENGINE' },
   ];
 
   return (
-    <aside className="w-16 sm:w-20 bg-[#09090b] border-r border-zinc-800 flex flex-col items-center py-4 shrink-0 h-full">
-      <div className="w-8 h-8 bg-cyan-500/10 border border-cyan-500/30 rounded flex items-center justify-center mb-8 shrink-0">
-        <span className="text-cyan-500 font-black text-sm">MP</span>
+    <div className="w-16 md:w-56 h-full bg-slate-950 border-r border-slate-800 flex flex-col shrink-0">
+      <div className="p-4 border-b border-slate-800 flex items-center justify-center md:justify-start">
+        <h1 className="hidden md:block text-sm font-bold text-slate-100 tracking-widest uppercase">MACROPULSE</h1>
+        <h1 className="md:hidden text-sm font-bold text-slate-100 tracking-widest uppercase">MP</h1>
       </div>
-
-      <nav className="flex flex-col gap-4 w-full">
-        {links.map((link) => {
-          const isActive = pathname === link.href;
+      <nav className="flex-1 flex flex-col pt-4 gap-1">
+        {navItems.map(item => {
+          const isActive = pathname === item.href;
           return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`flex flex-col items-center justify-center py-3 border-l-2 transition-colors w-full ${
-                isActive
-                  ? 'border-cyan-500 text-cyan-400 bg-cyan-950/10'
-                  : 'border-transparent text-zinc-600 hover:text-zinc-400 hover:bg-zinc-900/50'
-              }`}
+            <Link 
+              key={item.href} 
+              href={item.href}
+              className={`px-4 py-2 text-xs font-mono tracking-widest uppercase border-l-2 transition-colors ${isActive ? 'border-emerald-400 bg-slate-900 text-slate-100' : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-900/50'}`}
             >
-              <span className="text-xl leading-none mb-1">{link.icon}</span>
-              <span className="text-[9px] font-mono font-bold tracking-widest uppercase">
-                {link.label}
-              </span>
+              <span className="hidden md:inline">{item.label}</span>
+              <span className="md:hidden text-center block">{item.label.substring(0, 1)}</span>
             </Link>
           );
         })}
       </nav>
-
-      <div className="mt-auto flex flex-col items-center gap-2">
-        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span>
-        <span className="text-[8px] font-mono text-zinc-600 uppercase tracking-widest rotate-180" style={{ writingMode: 'vertical-rl' }}>
-          SYSTEM ONLINE
-        </span>
+      <div className="p-4 border-t border-slate-800 hidden md:block">
+        <div className="text-[10px] font-mono text-slate-600 uppercase tracking-widest leading-tight">
+          SYS_STATE: ONLINE<br/>
+          ENV: PROD
+        </div>
       </div>
-    </aside>
+    </div>
   );
 }
