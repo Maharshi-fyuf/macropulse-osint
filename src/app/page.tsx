@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import TopRibbon from '@/components/TopRibbon';
 import MarketNarrative from '@/components/MarketNarrative';
+import QuantTape from '@/components/QuantTape';
 import { supabase } from '@/lib/supabase-client';
 import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import { EventRecord } from '@/types/event';
@@ -78,42 +79,67 @@ export default function Home() {
     }
   }, [events]);
 
+  const priorityEvents = events.filter(e => e.severity_score >= 8);
+  const standardEvents = events.filter(e => e.severity_score < 8);
+
   return (
     <div className="h-full w-full bg-slate-950 flex flex-col overflow-hidden font-mono text-xs leading-tight">
       <TopRibbon />
       <MarketNarrative />
+      <QuantTape />
       
       <div className="flex-1 overflow-y-auto bg-slate-950 flex flex-col relative">
-        <div className="h-10 border-b border-slate-800 bg-slate-900 flex items-center px-4 shrink-0 justify-between sticky top-0 z-10">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-            </span>
-            <h2 className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-              Live Intel Feed
-            </h2>
-          </div>
-          <div className="text-[9px] text-slate-500 uppercase tracking-widest">
-            Squawk Box Stream
-          </div>
-        </div>
-        
-        <div className="w-full flex-1">
+        <div className="w-full flex-1 pb-20">
           <TerminalErrorBoundary>
             {loadingEvents ? (
               <div className="p-8 text-center text-slate-600 font-mono uppercase animate-pulse">
                 Syncing intelligence database...
               </div>
             ) : events.length > 0 ? (
-              events.map((event) => (
-                <FeedItem
-                  key={event.id}
-                  event={event}
-                  isActive={false}
-                  onSelect={() => {}}
-                />
-              ))
+              <>
+                {priorityEvents.length > 0 && (
+                  <div className="mb-2">
+                    <div className="h-8 border-b border-y border-slate-800 bg-red-950/20 flex items-center px-4 shrink-0 sticky top-0 z-10">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                        <h2 className="text-[10px] font-bold text-red-400 uppercase tracking-widest">
+                          Priority Intel Overlay
+                        </h2>
+                      </div>
+                    </div>
+                    {priorityEvents.map((event) => (
+                      <div key={event.id} className="border-l-4 border-l-red-500 bg-red-950/10">
+                        <FeedItem
+                          event={event}
+                          isActive={false}
+                          onSelect={() => {}}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div>
+                  <div className="h-8 border-b border-y border-slate-800 bg-slate-900 flex items-center px-4 shrink-0 sticky top-0 z-10">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Chronological Feed
+                      </h2>
+                    </div>
+                  </div>
+                  {standardEvents.map((event) => (
+                    <FeedItem
+                      key={event.id}
+                      event={event}
+                      isActive={false}
+                      onSelect={() => {}}
+                    />
+                  ))}
+                </div>
+              </>
             ) : (
               <div className="p-8 text-center text-slate-600 font-mono uppercase">
                 No intelligence events found
