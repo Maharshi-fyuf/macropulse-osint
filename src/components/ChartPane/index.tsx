@@ -2,7 +2,9 @@ import React, { memo, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ChartPaneProps } from './types';
 import { useChartData } from './useChartData';
-import { ChartCanvas } from './ChartCanvas';
+import dynamic from 'next/dynamic';
+
+const ChartCanvas = dynamic(() => import('./ChartCanvas').then((mod) => mod.ChartCanvas), { ssr: false });
 
 const ChartPane = memo(function ChartPane({ event, prediction, events }: ChartPaneProps) {
   const [customSymbol, setCustomSymbol] = useState('');
