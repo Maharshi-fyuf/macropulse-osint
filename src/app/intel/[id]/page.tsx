@@ -145,6 +145,40 @@ export default function IntelDetailPage() {
               </div>
             </div>
           </div>
+
+          <div className="mt-4 border border-blue-900/50 bg-blue-950/10 p-4 rounded-sm flex flex-col gap-4">
+            <span className="block text-[10px] font-bold text-blue-400 tracking-widest uppercase border-b border-blue-900/50 pb-2">
+              Deep Reasoning Chain (Experimental)
+            </span>
+            
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-blue-500 uppercase tracking-widest font-bold">First Order Impact</span>
+              <span className="text-xs text-blue-200">{(event as any).first_order_impact || 'Pending Analysis'}</span>
+            </div>
+            
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] text-blue-500 uppercase tracking-widest font-bold">Second Order Effect</span>
+              <span className="text-xs text-blue-200">{(event as any).second_order_effect || 'Pending Analysis'}</span>
+            </div>
+            
+            <div className="flex flex-col gap-1 bg-blue-900/20 p-2 rounded-sm border border-blue-800/30">
+              <span className="text-[10px] text-amber-500 uppercase tracking-widest font-bold">Hidden Vulnerability</span>
+              <span className="text-xs text-amber-200">{(event as any).hidden_vulnerability || 'Pending Analysis'}</span>
+            </div>
+          </div>
+
+          {event.url && (
+            <div className="mt-6 flex justify-center">
+              <a 
+                href={event.url} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 px-6 py-3 rounded-sm text-xs font-bold tracking-widest uppercase transition-colors"
+              >
+                Read Full Article
+              </a>
+            </div>
+          )}
         </TerminalErrorBoundary>
       </main>
     </div>

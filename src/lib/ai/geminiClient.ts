@@ -25,7 +25,10 @@ Output exactly a single JSON object matching this schema:
   "severity_score": integer (1-10),
   "primary_asset_class": "Energy" | "Metals" | "Forex" | "Equities" | "None",
   "bullish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"],
-  "bearish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"]
+  "bearish_assets": ["Asset/Ticker 1: Reason why", "Asset 2: Reason why"],
+  "first_order_impact": "The obvious, immediate market reaction",
+  "second_order_effect": "The structural consequence of the first order impact",
+  "hidden_vulnerability": "A specific, non-obvious asset class or sector exposed to the second-order effect"
 }
 
 SEVERITY SCORING GUIDELINES:
@@ -55,6 +58,9 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
             },
             bullish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
             bearish_assets: { type: 'ARRAY', items: { type: 'STRING' } },
+            first_order_impact: { type: 'STRING' },
+            second_order_effect: { type: 'STRING' },
+            hidden_vulnerability: { type: 'STRING' },
           },
           required: [
             'is_market_moving',
@@ -63,6 +69,9 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
             'primary_asset_class',
             'bullish_assets',
             'bearish_assets',
+            'first_order_impact',
+            'second_order_effect',
+            'hidden_vulnerability',
           ],
         },
       },

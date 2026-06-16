@@ -25,6 +25,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Phase 1: Ingestion only (No AI execution)
 export async function processNewsIngestion() {
   const recencyCutoff = new Date(Date.now() - RECENCY_GATE_HOURS * 60 * 60 * 1000);
 
@@ -55,11 +56,7 @@ export async function processNewsIngestion() {
   const totalFresh = allItems.length;
 
   if (totalFresh === 0) {
-    return {
-      message: 'No fresh articles found (all within recency gate or feeds failed)',
-      feedResults,
-      status: 200,
-    };
+    return { message: 'No fresh articles found', feedResults, status: 200 };
   }
 
   let newItems = [...allItems];
@@ -88,145 +85,183 @@ export async function processNewsIngestion() {
     dedupStatus = `checked — ${existingUrlsSet.size} already in DB, ${newItems.length} new`;
   } catch (dedupError: unknown) {
     const msg = dedupError instanceof Error ? dedupError.message : String(dedupError);
-    console.warn('[Cron Warn] Dedup failed, processing all fresh items:', msg);
     dedupStatus = `failed: ${msg}`;
   }
 
   if (newItems.length === 0) {
-    return {
-      message: 'No new articles to process (all already in DB)',
-      feedResults,
-      dedupStatus,
-      status: 200,
-    };
+    return { message: 'No new articles to process', feedResults, dedupStatus, status: 200 };
   }
 
-  const itemsBySource: Record<string, RawItem[]> = {};
-  for (const item of newItems) {
-    if (!itemsBySource[item.source]) itemsBySource[item.source] = [];
-    itemsBySource[item.source].push(item);
-  }
+  // Insert all new raw items immediately as 'pending'
+  const insertPayloads = newItems.map(item => ({
+    title: item.title,
+    source: item.source,
+    url: item.link,
+    published_at: item.pubDate,
+    raw_content: item.content,
+    analysis_status: 'pending',
+    analysis_attempts: 0
+  }));
 
-  for (const source in itemsBySource) {
-    itemsBySource[source].sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-  }
+  let insertedCount = 0;
+  let insertError: string | undefined;
 
-  const itemsToProcess: RawItem[] = [];
-  let hasMore = true;
-  while (itemsToProcess.length < MAX_ITEMS_PER_RUN && hasMore) {
-    hasMore = false;
-    for (const source in itemsBySource) {
-      if (itemsToProcess.length >= MAX_ITEMS_PER_RUN) break;
-      const sourceQueue = itemsBySource[source];
-      if (sourceQueue.length > 0) {
-        const nextItem = sourceQueue.shift();
-        if (nextItem) itemsToProcess.push(nextItem);
-        hasMore = true;
-      }
+  // Insert in chunks of 50 to avoid limits
+  for (let i = 0; i < insertPayloads.length; i += 50) {
+    const chunk = insertPayloads.slice(i, i + 50);
+    const { error: dbErr } = await supabaseAdmin
+      .from('events')
+      .upsert(chunk, { onConflict: 'url', ignoreDuplicates: true });
+
+    if (dbErr) {
+      insertError = dbErr.message;
+      console.error('[Ingestion] DB insert error:', dbErr);
+    } else {
+      insertedCount += chunk.length;
     }
   }
 
-  const upsertPayloads: Array<{
-    title: string;
-    source: string;
-    url: string;
-    published_at: string;
-    is_market_moving: boolean;
-    rationale: string;
-    severity_score: number;
-    asset_class: string;
-    bullish_assets: string[];
-    bearish_assets: string[];
-  }> = [];
+  return {
+    message: 'RSS raw ingestion completed',
+    total_fresh_from_feeds: totalFresh,
+    new_after_dedup: newItems.length,
+    successfully_inserted: insertedCount,
+    insert_error: insertError,
+    dedupStatus,
+    feedResults,
+    status: 200,
+  };
+}
 
-  const processedLog: Array<{ title: string; status: string; source?: string; error?: string }> = [];
+// Phase 2: Asynchronous Enrichment Batch
+export async function processEnrichmentBatch() {
+  const { data: pendingEvents, error: fetchError } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .eq('analysis_status', 'pending')
+    .order('published_at', { ascending: false })
+    .limit(MAX_ITEMS_PER_RUN);
 
-  for (const item of itemsToProcess) {
+  if (fetchError) {
+    return { message: 'Failed to fetch pending events', error: fetchError.message, status: 500 };
+  }
+
+  if (!pendingEvents || pendingEvents.length === 0) {
+    return { message: 'No pending events to enrich', status: 200 };
+  }
+
+  // Immediately update them to 'processing' to prevent duplicate execution
+  const pendingIds = pendingEvents.map(e => e.id);
+  await supabaseAdmin
+    .from('events')
+    .update({ analysis_status: 'processing' })
+    .in('id', pendingIds);
+
+  const processedLog: Array<{ id: string; title: string; status: string; error?: string }> = [];
+  let successCount = 0;
+
+  for (const event of pendingEvents) {
+    let newStatus = 'failed';
+    let errorMessage = '';
+    let aiData: any = {};
+
     try {
-      const analysis = await analyzeWithGemini(item);
+      const itemToAnalyze = {
+        title: event.title,
+        source: event.source,
+        content: event.raw_content || event.title
+      };
+
+      const analysis = await analyzeWithGemini(itemToAnalyze);
       if (analysis) {
-        upsertPayloads.push({
-          title: item.title,
-          source: item.source,
-          url: item.link,
-          published_at: item.pubDate,
+        newStatus = 'analyzed';
+        aiData = {
           is_market_moving: analysis.is_market_moving,
           rationale: analysis.rationale,
           severity_score: analysis.severity_score,
           asset_class: analysis.primary_asset_class,
           bullish_assets: analysis.bullish_assets,
           bearish_assets: analysis.bearish_assets,
-        });
-
-        processedLog.push({
-          title: item.title,
-          status: 'analysed',
-          source: item.source,
-        });
+          first_order_impact: analysis.first_order_impact,
+          second_order_effect: analysis.second_order_effect,
+          hidden_vulnerability: analysis.hidden_vulnerability,
+        };
+        successCount++;
+        processedLog.push({ id: event.id, title: event.title, status: 'analyzed' });
       } else {
-        processedLog.push({ title: item.title, status: 'analysis_failed', error: 'Validation returned null' });
+        errorMessage = 'Validation returned null';
+        processedLog.push({ id: event.id, title: event.title, status: 'failed', error: errorMessage });
       }
     } catch (itemError: unknown) {
-      const msg = itemError instanceof Error ? itemError.message : String(itemError);
-      processedLog.push({ title: item.title, status: 'analysis_failed', error: msg });
+      errorMessage = itemError instanceof Error ? itemError.message : String(itemError);
+      processedLog.push({ id: event.id, title: event.title, status: 'failed', error: errorMessage });
     }
+
+    const updatePayload = {
+      ...aiData,
+      analysis_status: newStatus,
+      analysis_attempts: (event.analysis_attempts || 0) + 1,
+      ...(newStatus === 'failed' ? { last_analysis_error: errorMessage } : {})
+    };
+
+    // Update row individually to ensure partial progress is saved
+    await supabaseAdmin
+      .from('events')
+      .update(updatePayload)
+      .eq('id', event.id);
 
     await sleep(GEMINI_INTER_REQUEST_DELAY_MS);
   }
 
-  let insertedCount = 0;
-  let upsertError: string | undefined;
+  // Check if narrative should be generated (Throttling: Once per hour)
+  try {
+    const { data: lastNarrative } = await supabaseAdmin
+      .from('narratives')
+      .select('created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
-  if (upsertPayloads.length > 0) {
-    const { error: dbErr } = await supabaseAdmin
-      .from('events')
-      .upsert(upsertPayloads, {
-        onConflict: 'url',
-        ignoreDuplicates: false,
-      });
-
-    if (dbErr) {
-      upsertError = dbErr.message;
+    let shouldGenerate = false;
+    if (!lastNarrative) {
+      shouldGenerate = true;
     } else {
-      insertedCount = upsertPayloads.length;
-      
-      // Narrative Engine Generation
-      try {
-        const { data: recentEvents } = await supabaseAdmin
-          .from('events')
-          .select('*')
-          .order('published_at', { ascending: false })
-          .limit(20);
-          
-        if (recentEvents && recentEvents.length > 0) {
-          const narrative = await generateNarrative(recentEvents);
-          if (narrative) {
-            await supabaseAdmin.from('narratives').insert({
-              dominant_theme: narrative.dominant_theme,
-              key_risks: narrative.key_risks,
-              bullish_assets: narrative.bullish_assets,
-              bearish_assets: narrative.bearish_assets,
-              summary: narrative.summary
-            });
-          }
-        }
-      } catch (narrativeError) {
-        console.error('Narrative generation failed during ingestion:', narrativeError);
+      const hoursSinceLast = (Date.now() - new Date(lastNarrative.created_at).getTime()) / (1000 * 60 * 60);
+      if (hoursSinceLast >= 1) {
+        shouldGenerate = true;
       }
     }
+
+    if (shouldGenerate && successCount > 0) {
+      const { data: recentAnalyzed } = await supabaseAdmin
+        .from('events')
+        .select('*')
+        .eq('analysis_status', 'analyzed')
+        .order('published_at', { ascending: false })
+        .limit(20);
+
+      if (recentAnalyzed && recentAnalyzed.length > 0) {
+        const narrative = await generateNarrative(recentAnalyzed);
+        if (narrative) {
+          await supabaseAdmin.from('narratives').insert({
+            dominant_theme: narrative.dominant_theme,
+            key_risks: narrative.key_risks,
+            bullish_assets: narrative.bullish_assets,
+            bearish_assets: narrative.bearish_assets,
+            summary: narrative.summary
+          });
+        }
+      }
+    }
+  } catch (narrativeError) {
+    console.error('Narrative generation failed during enrichment:', narrativeError);
   }
 
   return {
-    message: 'RSS ingestion completed',
-    recency_gate_hours: RECENCY_GATE_HOURS,
-    total_fresh_from_feeds: totalFresh,
-    new_after_dedup: newItems.length,
-    attempted_processing: itemsToProcess.length,
-    successfully_upserted: insertedCount,
-    upsert_error: upsertError,
+    message: 'Enrichment batch completed',
+    attempted: pendingEvents.length,
+    successful: successCount,
     processed: processedLog,
-    dedupStatus,
-    feedResults,
     status: 200,
   };
 }

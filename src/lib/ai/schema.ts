@@ -7,6 +7,9 @@ export const MarketEventSchema = z.object({
   primary_asset_class: z.enum(['Energy', 'Metals', 'Forex', 'Equities', 'None']),
   bullish_assets: z.array(z.string()),
   bearish_assets: z.array(z.string()),
+  first_order_impact: z.string().optional(),
+  second_order_effect: z.string().optional(),
+  hidden_vulnerability: z.string().optional(),
 });
 
 export type GeminiAnalysis = z.infer<typeof MarketEventSchema>;

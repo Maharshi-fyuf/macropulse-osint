@@ -13,13 +13,21 @@ CREATE TABLE IF NOT EXISTS events (
     severity_score SMALLINT CHECK (severity_score BETWEEN 1 AND 10),
     asset_class VARCHAR(50),
     bullish_assets TEXT[],
-    bearish_assets TEXT[]
+    bearish_assets TEXT[],
+    analysis_status VARCHAR(20) DEFAULT 'pending' CHECK (analysis_status IN ('pending', 'processing', 'analyzed', 'failed')),
+    analysis_attempts INTEGER DEFAULT 0,
+    last_analysis_error TEXT,
+    first_order_impact TEXT,
+    second_order_effect TEXT,
+    hidden_vulnerability TEXT,
+    raw_content TEXT
 );
 
 -- 2. Database Performance Optimizations
 -- High-speed query indexing for mobile feeds ordered by time and severity
 CREATE INDEX IF NOT EXISTS idx_events_market_moving_date ON events(is_market_moving, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_events_severity ON events(severity_score DESC);
+CREATE INDEX IF NOT EXISTS idx_events_status ON events(analysis_status);
 
 -- 3. Row Level Security Policies
 -- Enable RLS on events table
