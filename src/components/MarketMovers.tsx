@@ -34,7 +34,6 @@ export default function MarketMovers({ onSelectEvent }: MarketMoversProps) {
     return (
       <div className="flex flex-col gap-2 font-mono text-xs">
         {items.map((item) => {
-          const isIndian = item.ticker.endsWith('.NS') || item.ticker.endsWith('.BO') || item.ticker === '^NSEI' || item.ticker === '^BSESN';
           const isBullish = type === 'bullish';
           
           return (

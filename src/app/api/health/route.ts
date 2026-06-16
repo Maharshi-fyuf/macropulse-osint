@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase-client';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 
+const yahooFinance = new YahooFinance();
 export const revalidate = 60; // 60s cache
 
 export async function GET() {
@@ -43,7 +44,7 @@ export async function GET() {
     }
 
     return NextResponse.json(health);
-  } catch (error) {
+  } catch {
     return NextResponse.json(health, { status: 500 });
   }
 }

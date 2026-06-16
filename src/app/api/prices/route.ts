@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import yahooFinance from 'yahoo-finance2';
+import YahooFinance from 'yahoo-finance2';
 
+const yahooFinance = new YahooFinance();
 // 5 minute cache
 export const revalidate = 300;
 
@@ -10,11 +11,27 @@ export async function GET() {
     const results = await Promise.all(
       symbols.map(async (symbol) => {
         try {
-          const quote = await yahooFinance.quote(symbol);
+          const rawQuote = await yahooFinance.quote(symbol);
+          
+          interface YahooQuote {
+            regularMarketPrice?: number;
+            regularMarketChangePercent?: number;
+          }
+
+          const quote = rawQuote as unknown as YahooQuote;
+
+          if (quote && typeof quote === 'object' && quote.regularMarketPrice !== undefined && quote.regularMarketChangePercent !== undefined) {
+            return {
+              symbol,
+              price: quote.regularMarketPrice,
+              changePercent: quote.regularMarketChangePercent,
+            };
+          }
+          
           return {
             symbol,
-            price: quote.regularMarketPrice,
-            changePercent: quote.regularMarketChangePercent,
+            price: null,
+            changePercent: null,
           };
         } catch (err) {
           console.error(`Failed to fetch quote for ${symbol}:`, err);

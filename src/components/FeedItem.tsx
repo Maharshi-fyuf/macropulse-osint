@@ -23,7 +23,6 @@ export interface MarketEvent {
 interface FeedItemProps {
   event: MarketEvent;
   isActive: boolean;
-  onSelect: () => void;
 }
 
 export function formatTimeAgo(dateString: string): string {
@@ -64,7 +63,7 @@ function getDirectionalBg(event: MarketEvent): string {
 
 import Link from 'next/link';
 
-const FeedItem = memo(function FeedItem({ event, isActive, onSelect }: FeedItemProps) {
+const FeedItem = memo(function FeedItem({ event, isActive }: FeedItemProps) {
   const risk = getRiskClassification(event.severity_score);
   const directionalBg = getDirectionalBg(event);
 

@@ -32,7 +32,7 @@ export async function GET() {
     // Base 50 + (avg severity * 3) + (count factor)
     // Max 100
     const countFactor = Math.min(20, count / 2);
-    let score = Math.min(100, Math.round(30 + (avgSeverity * 4) + countFactor));
+    const score = Math.min(100, Math.round(30 + (avgSeverity * 4) + countFactor));
 
     // Find dominant driver by asset class frequency
     const assetCounts: Record<string, number> = {};

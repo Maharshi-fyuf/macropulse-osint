@@ -3,16 +3,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
-import FeedItem, { MarketEvent, formatTimeAgo } from '@/components/FeedItem';
+import FeedItem, { MarketEvent } from '@/components/FeedItem';
 import { EventRecord } from '@/types/event';
 import TerminalErrorBoundary from '@/components/TerminalErrorBoundary';
-import MarketMovers from '@/components/MarketMovers';
 
 type TimeFilter = 'Live' | '24h' | '7d';
 
 export default function IntelPage() {
   const [events, setEvents] = useState<MarketEvent[]>([]);
-  const [selectedFeedItem, setSelectedFeedItem] = useState<MarketEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [feedError, setFeedError] = useState(false);
@@ -64,7 +62,6 @@ export default function IntelPage() {
         })) as MarketEvent[];
 
         setEvents(mappedEvents);
-        setSelectedFeedItem((prev) => prev || mappedEvents[0]);
       }
     } catch (err: unknown) {
       clearTimeout(timeoutId);
@@ -76,7 +73,9 @@ export default function IntelPage() {
   }, [timeFilter]);
 
   useEffect(() => {
-    fetchEvents();
+    setTimeout(() => {
+      fetchEvents();
+    }, 0);
     const interval = setInterval(fetchEvents, 60000);
     return () => clearInterval(interval);
   }, [fetchEvents]);
@@ -162,7 +161,6 @@ export default function IntelPage() {
                     key={event.id}
                     event={event}
                     isActive={false}
-                    onSelect={() => {}}
                   />
                 ))
               ) : events.length === 0 ? (

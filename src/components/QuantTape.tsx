@@ -2,7 +2,6 @@
 
 import React from 'react';
 import useSWR from 'swr';
-import { type PredictionData } from '@/lib/types';
 
 const fetcher = (url: string) => fetch(url).then((res) => {
   if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
@@ -13,7 +12,7 @@ const fetcher = (url: string) => fetch(url).then((res) => {
 });
 
 export default function QuantTape() {
-  const { data: pricesData, error: pricesError } = useSWR('/api/prices', fetcher, { refreshInterval: 60000 });
+  const { data: pricesData } = useSWR('/api/prices', fetcher, { refreshInterval: 60000 });
   const { data: moversData } = useSWR('/api/market-movers', fetcher, { refreshInterval: 60000 });
 
   return (
@@ -22,7 +21,7 @@ export default function QuantTape() {
         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Q-TAPE</span>
       </div>
       <div className="flex-1 overflow-x-auto no-scrollbar flex items-center whitespace-nowrap pl-2 space-x-6">
-        {pricesData?.data?.map((t: any) => {
+        {pricesData?.data?.map((t: { symbol: string; price: number; changePercent: number }) => {
           if (!t.price) return null;
           const isUp = t.changePercent > 0;
           return (
@@ -35,7 +34,7 @@ export default function QuantTape() {
             </div>
           );
         })}
-        {moversData?.bullish?.slice(0,2).map((item: any) => (
+        {moversData?.bullish?.slice(0,2).map((item: { ticker: string; netSentimentScore: number }) => (
             <div key={item.ticker} className="flex items-center gap-2 text-[10px] font-mono tracking-widest">
               <span className="font-bold text-slate-300">{item.ticker}</span>
               <span className="font-bold text-emerald-400">

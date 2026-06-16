@@ -115,7 +115,6 @@ export default function Home() {
                         <FeedItem
                           event={event}
                           isActive={false}
-                          onSelect={() => {}}
                         />
                       </div>
                     ))}
@@ -135,7 +134,6 @@ export default function Home() {
                       key={event.id}
                       event={event}
                       isActive={false}
-                      onSelect={() => {}}
                     />
                   ))}
                 </div>

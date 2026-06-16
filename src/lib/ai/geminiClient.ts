@@ -99,7 +99,7 @@ If "is_market_moving" is false, return "None" for asset class and empty arrays. 
   }
 }
 
-export async function generateNarrative(events: any[]) {
+export async function generateNarrative(events: { title: string; rationale: string }[]) {
   if (!events || events.length === 0) return null;
   
   const eventsContext = events.slice(0, 20).map(e => `- ${e.title}: ${e.rationale}`).join('\n');

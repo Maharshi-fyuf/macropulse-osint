@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase-client';
 import { getTradingViewSymbol } from '@/lib/tickerMap';
-import { MarketEvent } from '@/components/FeedItem';
 import { EventRecord } from '@/types/event';
 
 export async function GET() {

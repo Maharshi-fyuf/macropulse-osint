@@ -2,8 +2,21 @@
 
 import React, { useState, useEffect } from 'react';
 
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
+
+interface NavigatorWithStandalone extends Navigator {
+  standalone?: boolean;
+}
+
 export default function PWAInstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
@@ -11,17 +24,19 @@ export default function PWAInstallPrompt() {
     // Detect iOS
     const userAgent = window.navigator.userAgent.toLowerCase();
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    const isStandalone = ('standalone' in window.navigator) && (window.navigator as any).standalone;
+    const isStandalone = ('standalone' in window.navigator) && (window.navigator as NavigatorWithStandalone).standalone;
     
     if (isIosDevice && !isStandalone) {
-      setIsIOS(true);
-      setShowPrompt(true);
+      setTimeout(() => {
+        setIsIOS(true);
+        setShowPrompt(true);
+      }, 0);
     }
 
     // Detect Android / Chrome PWA install prompt
-    const handleBeforeInstallPrompt = (e: any) => {
+    const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowPrompt(true);
     };
 

@@ -1,5 +1,4 @@
 import Parser from 'rss-parser';
-import { GoogleGenAI } from '@google/genai';
 import { supabaseAdmin } from '@/lib/supabase';
 import { fetchSingleFeed, FeedResult, RawItem } from '../rss/feedFetcher';
 import { analyzeWithGemini, generateNarrative } from '../ai/geminiClient';

@@ -18,7 +18,7 @@ export async function GET() {
     }
 
     return NextResponse.json(data);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Not enough data to generate narrative' }, { status: 500 });
   }
 }
