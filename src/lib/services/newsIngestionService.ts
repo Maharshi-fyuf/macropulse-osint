@@ -163,7 +163,7 @@ export async function processEnrichmentBatch() {
   for (const event of pendingEvents) {
     let newStatus = 'failed';
     let errorMessage = '';
-    let aiData: any = {};
+    let aiData: Record<string, unknown> = {};
 
     try {
       const itemToAnalyze = {
@@ -185,6 +185,7 @@ export async function processEnrichmentBatch() {
           first_order_impact: analysis.first_order_impact,
           second_order_effect: analysis.second_order_effect,
           hidden_vulnerability: analysis.hidden_vulnerability,
+          confidence_reasoning: analysis.confidence_reasoning,
         };
         successCount++;
         processedLog.push({ id: event.id, title: event.title, status: 'analyzed' });

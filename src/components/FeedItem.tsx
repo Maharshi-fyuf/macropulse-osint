@@ -18,6 +18,11 @@ export interface MarketEvent {
   bullish_assets: string[];
   bearish_assets: string[];
   ticker: string;
+  analysis_status?: string;
+  first_order_impact?: string | null;
+  second_order_effect?: string | null;
+  hidden_vulnerability?: string | null;
+  confidence_reasoning?: string | null;
 }
 
 interface FeedItemProps {
@@ -53,6 +58,16 @@ function getRiskClassification(score: number): { label: string; color: string; b
   return { label: 'NOMINAL UPDATE', color: 'text-slate-400', bg: 'bg-slate-900/50 border-slate-800' };
 }
 
+function getAnalysisBadge(status?: string): { label: string; color: string; bg: string } {
+  switch (status) {
+    case 'analyzed': return { label: 'ANALYZED', color: 'text-emerald-400', bg: 'bg-emerald-950/30 border-emerald-900/50' };
+    case 'processing': return { label: 'ANALYZING', color: 'text-blue-400 animate-pulse', bg: 'bg-blue-950/30 border-blue-900/50' };
+    case 'pending': return { label: 'PENDING', color: 'text-slate-400', bg: 'bg-slate-900/50 border-slate-800' };
+    case 'failed': return { label: 'FAILED', color: 'text-red-500', bg: 'bg-red-950/30 border-red-900/50' };
+    default: return { label: 'ANALYZED', color: 'text-emerald-400', bg: 'bg-emerald-950/30 border-emerald-900/50' };
+  }
+}
+
 function getDirectionalBg(event: MarketEvent): string {
   const bull = event.bullish_assets?.length || 0;
   const bear = event.bearish_assets?.length || 0;
@@ -66,6 +81,7 @@ import Link from 'next/link';
 const FeedItem = memo(function FeedItem({ event, isActive }: FeedItemProps) {
   const risk = getRiskClassification(event.severity_score);
   const directionalBg = getDirectionalBg(event);
+  const analysisBadge = getAnalysisBadge(event.analysis_status);
 
   return (
     <Link
@@ -75,9 +91,12 @@ const FeedItem = memo(function FeedItem({ event, isActive }: FeedItemProps) {
       }`}
     >
       <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border uppercase tracking-widest ${risk.bg} ${risk.color}`}>
             {risk.label}
+          </span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm border uppercase tracking-widest ${analysisBadge.bg} ${analysisBadge.color}`}>
+            {analysisBadge.label}
           </span>
         </div>
         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
